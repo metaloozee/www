@@ -1,22 +1,22 @@
 "use client";
 
+import clsx from "clsx";
+import { motion } from "framer-motion";
+import { Globe, User } from "lucide-react";
+import Link from "next/link";
+import type { ReactNode } from "react";
+import remarkGfm from "remark-gfm";
+
+import { MemoizedReactMarkdown } from "@/components/markdown";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardHeader,
-  CardTitle,
   CardDescription,
   CardFooter,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
-import { motion } from "framer-motion";
-import { User, Globe } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-
-import { MemoizedReactMarkdown } from "@/components/Markdown";
-import remarkGfm from "remark-gfm";
-import clsx from "clsx";
-import { ReactNode } from "react";
 
 const groupVariant = {
   hidden: { opacity: 0, x: -5 },
@@ -46,14 +46,14 @@ export function MessageCard({
       }}
       variants={itemVariant}
     >
-      <Card className="bg-zinc-900/50 flex flex-col max-w-fit">
+      <Card className="flex max-w-fit flex-col bg-zinc-900/50">
         <CardHeader>
           <CardTitle>{title.toLocaleLowerCase()}</CardTitle>
           <CardDescription>{description.toLocaleLowerCase()}</CardDescription>
         </CardHeader>
         <CardFooter>
-          <Button className="w-full" asChild>
-            <Link href={footerUrl} target="_blank" rel="noopener noreferrer">
+          <Button asChild className="w-full">
+            <Link href={footerUrl} rel="noopener noreferrer" target="_blank">
               <Globe className="size-4" />
             </Link>
           </Button>
@@ -74,10 +74,9 @@ function MessageBubble({ content }: { content: string }) {
       }}
       variants={itemVariant}
     >
-      <Card className="bg-zinc-900/50 flex flex-col max-w-fit">
+      <Card className="flex max-w-fit flex-col bg-zinc-900/50">
         <CardHeader className="p-4 text-sm">
           <MemoizedReactMarkdown
-            remarkPlugins={[remarkGfm]}
             components={{
               li({ children }) {
                 return <li className="list-inside list-disc">{children}</li>;
@@ -94,16 +93,17 @@ function MessageBubble({ content }: { content: string }) {
               a({ children, href }) {
                 return (
                   <Link
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    className="bg-purple-50/10 text-purple-300"
                     href={href as string}
-                    className="text-purple-300 bg-purple-50/10"
+                    rel="noopener noreferrer"
+                    target="_blank"
                   >
                     {children}
                   </Link>
                 );
               },
             }}
+            remarkPlugins={[remarkGfm]}
           >
             {content.toLocaleLowerCase()}
           </MemoizedReactMarkdown>
@@ -124,6 +124,10 @@ export default function MessageGroup({
 }) {
   return (
     <motion.li
+      className={clsx(
+        "flex items-end justify-start gap-3 md:gap-5",
+        user && "flex-row-reverse"
+      )}
       transition={{
         type: "spring",
         mass: 11,
@@ -133,10 +137,6 @@ export default function MessageGroup({
         staggerChildren: 0.1,
       }}
       variants={groupVariant}
-      className={clsx(
-        "flex gap-3 md:gap-5 justify-start items-end",
-        user && "flex-row-reverse"
-      )}
     >
       <Avatar>
         {!user && <AvatarImage src="https://github.com/metaloozee.png" />}
@@ -146,10 +146,9 @@ export default function MessageGroup({
       </Avatar>
 
       <div className="flex flex-col gap-2">
-        {messages &&
-          messages.map(({ key: id, content }, i) => (
-            <MessageBubble key={id} content={content} />
-          ))}
+        {messages?.map(({ key: id, content }) => (
+          <MessageBubble content={content} key={id} />
+        ))}
 
         {children}
       </div>

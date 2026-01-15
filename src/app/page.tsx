@@ -1,12 +1,12 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import clsx from "clsx";
 
 import { motion } from "framer-motion";
 
-import { ReactNode, useEffect, useRef, useState } from "react";
-import MessageGroup, { MessageCard } from "@/components/Message";
-import clsx from "clsx";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import MessageGroup, { MessageCard } from "@/components/message";
+import { Button } from "@/components/ui/button";
 
 export default function IndexPage() {
   const [aboutMe, setAboutMe] = useState(false);
@@ -17,8 +17,10 @@ export default function IndexPage() {
 
   const scrollRef = useRef<HTMLUListElement>(null);
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [flow]);
+    if (flow.length > 0) {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [flow.length]);
 
   const handleAboutMe = () => {
     setAboutMe(true);
@@ -26,13 +28,13 @@ export default function IndexPage() {
       ...flow,
       <>
         <MessageGroup
-          user
           messages={[
             {
               key: "about",
               content: "tell me more about yourself",
             },
           ]}
+          user
         />
 
         <MessageGroup
@@ -64,13 +66,13 @@ export default function IndexPage() {
       ...flow,
       <>
         <MessageGroup
-          user
           messages={[
             {
               key: "projects",
               content: "what have you done in life?",
             },
           ]}
+          user
         />
 
         <MessageGroup
@@ -88,9 +90,9 @@ export default function IndexPage() {
           ]}
         >
           <MessageCard
-            title="QuickVid"
             description="QuickVid is an open sourced web application in which one can Summarize hour-long youtube videos, Verify the authenticity of the video and Chat with it based on the video's context."
             footerUrl="https://quickvid.vercel.app/"
+            title="QuickVid"
           />
         </MessageGroup>
       </>,
@@ -103,13 +105,13 @@ export default function IndexPage() {
       ...flow,
       <>
         <MessageGroup
-          user
           messages={[
             {
               key: "contact",
               content: "how can i reach out to you?",
             },
           ]}
+          user
         />
 
         <MessageGroup
@@ -134,16 +136,16 @@ export default function IndexPage() {
   };
 
   return (
-    <section className="relative px-4 flex flex-col items-center justify-center container max-w-2xl space-y-14 py-10">
+    <section className="container relative flex max-w-2xl flex-col items-center justify-center space-y-14 px-4 py-10">
       <motion.ul
+        animate="show"
+        className="space-y-10"
+        initial="hidden"
+        ref={scrollRef}
         transition={{
           staggerChildren: 0.3,
           delayChildren: 0.3,
         }}
-        initial="hidden"
-        animate="show"
-        className="space-y-10"
-        ref={scrollRef}
       >
         <MessageGroup
           messages={[
@@ -167,34 +169,34 @@ export default function IndexPage() {
         {flow.map((m) => m)}
 
         <motion.div
+          animate={{ opacity: 1 }}
+          className="flex flex-wrap items-end justify-end gap-2"
+          initial={{ opacity: 0 }}
           transition={{
             delay: 1,
           }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="flex flex-wrap justify-end items-end gap-2"
         >
           <Button
-            onClick={() => handleAboutMe()}
-            disabled={!!aboutMe}
-            variant={"secondary"}
             className={clsx("text-xs", !!aboutMe && "hidden")}
+            disabled={!!aboutMe}
+            onClick={() => handleAboutMe()}
+            variant={"secondary"}
           >
             about-me
           </Button>
           <Button
-            onClick={() => handleProjects()}
-            disabled={!!projects}
-            variant={"secondary"}
             className={clsx("text-xs", !!projects && "hidden")}
+            disabled={!!projects}
+            onClick={() => handleProjects()}
+            variant={"secondary"}
           >
             what-have-i-done
           </Button>
           <Button
-            onClick={() => handleContact()}
-            disabled={!!contact}
-            variant={"secondary"}
             className={clsx("text-xs", !!contact && "hidden")}
+            disabled={!!contact}
+            onClick={() => handleContact()}
+            variant={"secondary"}
           >
             get-in-touch-with-me
           </Button>
