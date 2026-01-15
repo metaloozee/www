@@ -15,7 +15,7 @@ const Avatar = forwardRef<
 >(({ className, ...props }, ref) => (
   <Root
     className={cn(
-      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full",
+      "relative flex h-10 w-10 shrink-0 overflow-hidden rounded-full ring-2 ring-purple-500/20 ring-offset-2 ring-offset-background transition-all duration-200 hover:ring-purple-500/40",
       className
     )}
     ref={ref}

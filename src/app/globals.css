@@ -65,8 +65,26 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: radial-gradient(
+      ellipse 80% 50% at 50% -20%,
+      rgba(120, 80, 200, 0.12),
+      transparent
+    );
+    min-height: 100vh;
   }
   *::selection {
-    @apply text-purple-300 bg-purple-50/10;
+    @apply text-purple-300 bg-purple-500/20;
+  }
+
+  * {
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 }
