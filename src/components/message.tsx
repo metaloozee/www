@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { Globe, User } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -22,8 +22,19 @@ const groupVariant = {
   hidden: { opacity: 0, x: -5 },
   show: { opacity: 1, x: 0 },
 };
+
+const reducedGroupVariant = {
+  hidden: { opacity: 1, x: 0 },
+  show: { opacity: 1, x: 0 },
+};
+
 const itemVariant = {
   hidden: { opacity: 0 },
+  show: { opacity: 1 },
+};
+
+const reducedItemVariant = {
+  hidden: { opacity: 1 },
   show: { opacity: 1 },
 };
 
@@ -36,15 +47,21 @@ export function MessageCard({
   description: string;
   footerUrl: string;
 }) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <motion.div
-      transition={{
-        type: "spring",
-        mass: 1,
-        damping: 100,
-        stiffness: 500,
-      }}
-      variants={itemVariant}
+      transition={
+        prefersReducedMotion
+          ? {}
+          : {
+              type: "spring",
+              mass: 1,
+              damping: 100,
+              stiffness: 500,
+            }
+      }
+      variants={prefersReducedMotion ? reducedItemVariant : itemVariant}
     >
       <Card className="flex max-w-fit flex-col bg-zinc-900/50">
         <CardHeader>
@@ -53,8 +70,13 @@ export function MessageCard({
         </CardHeader>
         <CardFooter>
           <Button asChild className="w-full">
-            <Link href={footerUrl} rel="noopener noreferrer" target="_blank">
-              <Globe className="size-4" />
+            <Link
+              aria-label={`Visit ${title} website`}
+              href={footerUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <Globe aria-hidden="true" className="size-4" />
             </Link>
           </Button>
         </CardFooter>
@@ -63,16 +85,26 @@ export function MessageCard({
   );
 }
 
-function MessageBubble({ content }: { content: string }) {
+function MessageBubble({
+  content,
+  prefersReducedMotion,
+}: {
+  content: string;
+  prefersReducedMotion: boolean | null;
+}) {
   return (
     <motion.div
-      transition={{
-        type: "spring",
-        mass: 1,
-        damping: 100,
-        stiffness: 500,
-      }}
-      variants={itemVariant}
+      transition={
+        prefersReducedMotion
+          ? {}
+          : {
+              type: "spring",
+              mass: 1,
+              damping: 100,
+              stiffness: 500,
+            }
+      }
+      variants={prefersReducedMotion ? reducedItemVariant : itemVariant}
     >
       <Card className="flex max-w-fit flex-col bg-zinc-900/50">
         <CardHeader className="p-4 text-sm">
@@ -122,32 +154,46 @@ export default function MessageGroup({
   user?: boolean;
   children?: ReactNode;
 }) {
+  const prefersReducedMotion = useReducedMotion();
+
   return (
     <motion.li
       className={clsx(
         "flex items-end justify-start gap-3 md:gap-5",
         user && "flex-row-reverse"
       )}
-      transition={{
-        type: "spring",
-        mass: 11,
-        damping: 140,
-        stiffness: 500,
-
-        staggerChildren: 0.1,
-      }}
-      variants={groupVariant}
+      transition={
+        prefersReducedMotion
+          ? {}
+          : {
+              type: "spring",
+              mass: 11,
+              damping: 140,
+              stiffness: 500,
+              staggerChildren: 0.1,
+            }
+      }
+      variants={prefersReducedMotion ? reducedGroupVariant : groupVariant}
     >
       <Avatar>
-        {!user && <AvatarImage src="https://github.com/metaloozee.png" />}
+        {!user && (
+          <AvatarImage
+            alt="Ayan's profile picture"
+            src="https://github.com/metaloozee.png"
+          />
+        )}
         <AvatarFallback>
-          <User className="size-4" />
+          <User aria-hidden="true" className="size-4" />
         </AvatarFallback>
       </Avatar>
 
       <div className="flex flex-col gap-2">
         {messages?.map(({ key: id, content }) => (
-          <MessageBubble content={content} key={id} />
+          <MessageBubble
+            content={content}
+            key={id}
+            prefersReducedMotion={prefersReducedMotion}
+          />
         ))}
 
         {children}
