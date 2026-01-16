@@ -38,7 +38,6 @@ export function MessageCard({
 }) {
   return (
     <motion.div
-      className="group"
       transition={{
         type: "spring",
         mass: 1,
@@ -46,16 +45,11 @@ export function MessageCard({
         stiffness: 500,
       }}
       variants={itemVariant}
-      whileHover={{ scale: 1.02 }}
     >
-      <Card className="flex max-w-fit flex-col border-zinc-800/60 bg-zinc-900/60 shadow-black/20 shadow-xl backdrop-blur-md transition-all duration-300 group-hover:border-purple-500/20 group-hover:shadow-purple-900/10">
+      <Card className="flex max-w-fit flex-col bg-zinc-900/50">
         <CardHeader>
-          <CardTitle className="text-zinc-100">
-            {title.toLocaleLowerCase()}
-          </CardTitle>
-          <CardDescription className="text-zinc-400">
-            {description.toLocaleLowerCase()}
-          </CardDescription>
+          <CardTitle>{title.toLocaleLowerCase()}</CardTitle>
+          <CardDescription>{description.toLocaleLowerCase()}</CardDescription>
         </CardHeader>
         <CardFooter>
           <Button asChild className="w-full">
@@ -72,7 +66,6 @@ export function MessageCard({
 function MessageBubble({ content }: { content: string }) {
   return (
     <motion.div
-      className="group"
       transition={{
         type: "spring",
         mass: 1,
@@ -81,8 +74,8 @@ function MessageBubble({ content }: { content: string }) {
       }}
       variants={itemVariant}
     >
-      <Card className="flex max-w-fit flex-col border-zinc-800/60 bg-zinc-900/60 shadow-black/15 shadow-lg backdrop-blur-md transition-all duration-300 group-hover:border-zinc-700/80 group-hover:shadow-xl">
-        <CardHeader className="p-4 text-sm leading-relaxed">
+      <Card className="flex max-w-fit flex-col bg-zinc-900/50">
+        <CardHeader className="p-4 text-sm">
           <MemoizedReactMarkdown
             components={{
               li({ children }) {
@@ -95,12 +88,12 @@ function MessageBubble({ content }: { content: string }) {
                 return <ol className="list-item">{children}</ol>;
               },
               p({ children }) {
-                return <p className="text-zinc-200">{children}</p>;
+                return <p>{children}</p>;
               },
               a({ children, href }) {
                 return (
                   <Link
-                    className="rounded-sm bg-purple-500/15 px-1 py-0.5 text-purple-300 transition-all duration-200 hover:bg-purple-500/25 hover:text-purple-200"
+                    className="bg-purple-50/10 text-purple-300"
                     href={href as string}
                     rel="noopener noreferrer"
                     target="_blank"
