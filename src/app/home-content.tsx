@@ -2,7 +2,6 @@
 
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { RotateCcw } from "lucide-react";
 import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
 import { useEffect, useRef } from "react";
 
@@ -37,15 +36,6 @@ export default function HomeContent() {
       setActiveSections([...activeSections, sectionId]);
     }
   };
-
-  const handleReset = () => {
-    setActiveSections([]);
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const allSectionsVisible = SECTION_BUTTONS.every(({ id }) =>
-    activeSections.includes(id)
-  );
 
   const motionVariants = prefersReducedMotion
     ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
@@ -113,16 +103,6 @@ export default function HomeContent() {
               </Button>
             );
           })}
-          {allSectionsVisible && (
-            <Button
-              aria-label="Start over"
-              className="size-8"
-              onClick={handleReset}
-              variant="ghost"
-            >
-              <RotateCcw aria-hidden="true" className="size-4" />
-            </Button>
-          )}
         </motion.div>
       </motion.ul>
     </section>
