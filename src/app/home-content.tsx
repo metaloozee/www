@@ -78,13 +78,14 @@ export default function HomeContent() {
             <div className="space-y-10" key={sectionId}>
               <MessageGroup messages={[section.userMessage]} user />
               <MessageGroup messages={section.response}>
-                {section.projectCard && (
+                {section.projectCards?.map((project) => (
                   <MessageCard
-                    description={section.projectCard.description}
-                    footerUrl={section.projectCard.url}
-                    title={section.projectCard.title}
+                    description={project.description}
+                    footerUrl={project.url}
+                    key={project.title}
+                    title={project.title}
                   />
-                )}
+                ))}
               </MessageGroup>
             </div>
           );
