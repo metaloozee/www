@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Ayan", url: "https://github.com/metaloozee" }],
   creator: "Ayan",
   description:
-    "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
+    "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
   keywords: [
     "Ayan",
     "Full-Stack Developer",
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     description:
-      "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
+      "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
     locale: "en_US",
     siteName: "Ayan's Portfolio",
     title: "Ayan | Full-Stack Developer & AI Enthusiast",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     creator: "@metaloozee",
     description:
-      "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
+      "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
     title: "Ayan | Full-Stack Developer & AI Enthusiast",
   },
 };
