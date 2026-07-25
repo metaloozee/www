@@ -20,8 +20,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "target": "esnext",
-    "baseUrl": "./"
+    "target": "esnext"
   },
   "include": [
     "next-env.d.ts",
