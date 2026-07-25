@@ -6,8 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "prepare": "husky"
+    "lint": "biome lint .",
+    "prepare": "husky",
+    "format": "biome format --write .",
+    "check": "biome check .",
+    "check:write": "biome check --write .",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",
@@ -18,34 +22,36 @@
     "framer-motion": "^11.15.0",
     "geist": "^1.3.1",
     "lucide-react": "^0.562.0",
-    "next": "^16.0.0",
+    "next": "^16.2.11",
     "next-themes": "^0.4.4",
     "nuqs": "^2.8.6",
-    "react": "^19",
-    "react-dom": "^19",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "react-markdown": "^9.0.1",
     "remark-gfm": "^4.0.0",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.11",
+    "@biomejs/biome": "^2.5.5",
     "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^8",
-    "eslint-config-next": "^16.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.7",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.3",
-    "ultracite": "7.0.11"
+    "ultracite": "^7.9.4"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx,json,jsonc,css,scss,md,mdx}": [
-      "bun x ultracite fix"
+      "biome check --write --no-errors-on-unmatched"
     ]
   },
-  "packageManager": "pnpm@10.0.0+sha512.b8fef5494bd3fe4cbd4edabd0745df2ee5be3e4b0b8b08fa643aa3e4c6702ccc0f00d68fa8a8c9858a735a0032485a44990ed2810526c875e416f001b17df12b"
+  "packageManager": "pnpm@11.17.0",
+  "engines": {
+    "node": ">=20.9.0",
+    "pnpm": ">=11.17.0"
+  }
 }
