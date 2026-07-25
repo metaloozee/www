@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "main": ".open-next/worker.js",
-  "name": "website-2024",
+  "name": "www",
   "compatibility_date": "2026-07-24",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
@@ -13,7 +13,7 @@
       // Self-reference service binding, the service name must match the worker name
       // see https://opennext.js.org/cloudflare/caching
       "binding": "WORKER_SELF_REFERENCE",
-      "service": "website-2024"
+      "service": "www"
     }
   ],
   "r2_buckets": [
@@ -24,7 +24,7 @@
       // Create the bucket before deploying
       // You can change the bucket name if you want
       // See https://developers.cloudflare.com/workers/wrangler/commands/#r2-bucket-create
-      "bucket_name": "website-2024-opennext-cache"
+      "bucket_name": "www-opennext-cache"
     }
   ],
   "images": {
