@@ -3,16 +3,11 @@
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
-import { useEffect, useRef } from "react";
+import { type MouseEvent, useCallback, useEffect, useRef } from "react";
 
 import MessageGroup, { MessageCard } from "@/components/message";
 import { Button } from "@/components/ui/button";
-import {
-  INTRO_MESSAGES,
-  SECTION_BUTTONS,
-  SECTIONS,
-  type SectionId,
-} from "@/lib/content";
+import { INTRO_MESSAGES, SECTION_BUTTONS, SECTIONS } from "@/lib/content";
 
 const sectionIds = SECTION_BUTTONS.map((s) => s.id);
 
@@ -31,15 +26,27 @@ export default function HomeContent() {
     }
   }, [activeSections.length]);
 
-  const handleSectionClick = (sectionId: SectionId) => {
-    if (!activeSections.includes(sectionId)) {
-      setActiveSections([...activeSections, sectionId]);
-    }
-  };
+  const handleSectionClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      const selectedSection = SECTION_BUTTONS.find(
+        ({ id }) => id === event.currentTarget.name
+      );
+
+      if (!selectedSection) {
+        return;
+      }
+
+      const sectionId = selectedSection.id;
+      if (!activeSections.includes(sectionId)) {
+        setActiveSections([...activeSections, sectionId]);
+      }
+    },
+    [activeSections, setActiveSections]
+  );
 
   const motionVariants = prefersReducedMotion
     ? { hidden: { opacity: 1 }, show: { opacity: 1 } }
-    : { staggerChildren: 0.3, delayChildren: 0.3 };
+    : { delayChildren: 0.3, staggerChildren: 0.3 };
 
   const buttonMotionVariants = prefersReducedMotion
     ? { opacity: 1 }
@@ -96,7 +103,8 @@ export default function HomeContent() {
                 className={clsx("text-xs", isActive && "hidden")}
                 disabled={isActive}
                 key={id}
-                onClick={() => handleSectionClick(id)}
+                name={id}
+                onClick={handleSectionClick}
                 variant="secondary"
               >
                 {label}

@@ -6,10 +6,8 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: {
-    default: "Ayan | Full-Stack Developer & AI Enthusiast",
-    template: "%s | Ayan",
-  },
+  authors: [{ name: "Ayan", url: "https://github.com/metaloozee" }],
+  creator: "Ayan",
   description:
     "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
   keywords: [
@@ -21,26 +19,28 @@ export const metadata: Metadata = {
     "React",
     "Next.js",
   ],
-  authors: [{ name: "Ayan", url: "https://github.com/metaloozee" }],
-  creator: "Ayan",
   openGraph: {
-    type: "website",
-    locale: "en_US",
-    title: "Ayan | Full-Stack Developer & AI Enthusiast",
     description:
       "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
+    locale: "en_US",
     siteName: "Ayan's Portfolio",
+    title: "Ayan | Full-Stack Developer & AI Enthusiast",
+    type: "website",
+  },
+  robots: {
+    follow: true,
+    index: true,
+  },
+  title: {
+    default: "Ayan | Full-Stack Developer & AI Enthusiast",
+    template: "%s | Ayan",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Ayan | Full-Stack Developer & AI Enthusiast",
+    creator: "@metaloozee",
     description:
       "I'm Ayan, an 18-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
-    creator: "@metaloozee",
-  },
-  robots: {
-    index: true,
-    follow: true,
+    title: "Ayan | Full-Stack Developer & AI Enthusiast",
   },
 };
 

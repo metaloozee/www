@@ -55,10 +55,10 @@ export function MessageCard({
         prefersReducedMotion
           ? {}
           : {
-              type: "spring",
-              mass: 1,
               damping: 100,
+              mass: 1,
               stiffness: 500,
+              type: "spring",
             }
       }
       variants={prefersReducedMotion ? reducedItemVariant : itemVariant}
@@ -98,10 +98,10 @@ function MessageBubble({
         prefersReducedMotion
           ? {}
           : {
-              type: "spring",
-              mass: 1,
               damping: 100,
+              mass: 1,
               stiffness: 500,
+              type: "spring",
             }
       }
       variants={prefersReducedMotion ? reducedItemVariant : itemVariant}
@@ -110,18 +110,6 @@ function MessageBubble({
         <CardHeader className="p-4 text-sm">
           <MemoizedReactMarkdown
             components={{
-              li({ children }) {
-                return <li className="list-inside list-disc">{children}</li>;
-              },
-              ul({ children }) {
-                return <ul className="list-item">{children}</ul>;
-              },
-              ol({ children }) {
-                return <ol className="list-item">{children}</ol>;
-              },
-              p({ children }) {
-                return <p>{children}</p>;
-              },
               a({ children, href }) {
                 return (
                   <Link
@@ -133,6 +121,18 @@ function MessageBubble({
                     {children}
                   </Link>
                 );
+              },
+              li({ children }) {
+                return <li className="list-inside list-disc">{children}</li>;
+              },
+              ol({ children }) {
+                return <ol className="list-item">{children}</ol>;
+              },
+              p({ children }) {
+                return <p>{children}</p>;
+              },
+              ul({ children }) {
+                return <ul className="list-item">{children}</ul>;
               },
             }}
             remarkPlugins={[remarkGfm]}
@@ -166,11 +166,11 @@ export default function MessageGroup({
         prefersReducedMotion
           ? {}
           : {
-              type: "spring",
-              mass: 11,
               damping: 140,
-              stiffness: 500,
+              mass: 11,
               staggerChildren: 0.1,
+              stiffness: 500,
+              type: "spring",
             }
       }
       variants={prefersReducedMotion ? reducedGroupVariant : groupVariant}
