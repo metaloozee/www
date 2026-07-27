@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
-import { Globe, User } from "lucide-react";
+import { Github, Globe, User } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import remarkGfm from "remark-gfm";
@@ -76,7 +76,11 @@ export function MessageCard({
               rel="noopener noreferrer"
               target="_blank"
             >
-              <Globe aria-hidden="true" className="size-4" />
+              {footerUrl.includes("github.com") ? (
+                <Github aria-hidden="true" className="size-4" />
+              ) : (
+                <Globe aria-hidden="true" className="size-4" />
+              )}
             </Link>
           </Button>
         </CardFooter>
