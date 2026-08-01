@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "motion/react";
 import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
 import { type MouseEvent, useCallback, useEffect, useRef } from "react";
 
