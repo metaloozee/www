@@ -18,19 +18,16 @@ Reference: the boot loader on shader.se. Take its glass, fringing and boot scree
 | Human | yes | Character-grid text drawn to a canvas, passed through the CRT shader |
 | Agent | no | `index.md` as plain markdown, no shader, system mono font |
 
-- A physical rocker switch on the bezel changes modes. Going to agent mode plays the power-off collapse (the picture squeezes to a horizontal line, then a dot, then fades). Going back plays the boot sequence.
-- The choice is saved per visitor, with a fallback to Human.
+- A `HUMAN | AGENT` switch drawn at the right of the title bar (`AYAN.WTF` on the left), before the clock, changes modes. The lit mode is in reverse video against the inverted bar. In agent mode the same switch sits at the right of the header, next to the `text/markdown` label and the `/index.md` and `/llms.txt` links. Going to agent mode plays the power-off collapse (the picture squeezes to a horizontal line, then a dot, then fades). Going back plays it in reverse (dot, line, picture), then the boot sequence.
+- The mode lives in the URL as `?view=agent` (absent means Human), so a reload or a shared link keeps it. Switching replaces the history entry rather than adding one.
 - Agents that never click get the same content at `/index.md` and `/llms.txt`, and on `/` when the request sends `Accept: text/markdown`.
 
 ## Monitor body
 
-A charcoal broadcast monitor (JVC-style), front-on, filling the window. There's no room or desk around it: on wide 16:9 screens an object floating in a room looks odd, so the casing is the page's edge.
+There is no casing. The glass fills the window with a thin black margin, and the page behind it is `--tube` black.
 
-- **Casing:** `--bezel` with a lit top edge (`--bezel-hi`) and a shaded bottom (`--bezel-lo`). Kept thin (about 1% of the window at the sides) so the glass gets most of the screen.
-- **Bezel slope:** four border facets, lighter at the top, mid at the sides, darkest at the bottom, so the bezel reads as sloping down into the tube. The outer corner radius is the slope width plus `--opening`, so the opening itself has round corners; the tube, the glass and the shader's screen mask all share that radius.
-- **Tube:** a `--tube` recess with an inner shadow around the glass.
-- **Chin:** the `AYAN` logo, speaker grille, a recessed control strip (V-HOLD, BRIGHT, CONTRAST, SHARP), the Human/Agent rocker, the power LED and a round power button.
-- **Sizing:** every thickness uses `clamp()` on the viewport, so the body keeps its proportions from a laptop up to a 16:9 display. Below `sm` the grille hides; below `md` the control keys hide and only the rocker and power stay.
+- **Shape:** the shader draws the screen edge. Barrel curvature keeps the edge midpoints at the window edge and pulls the corners in, so each edge bows outward. The corners are rounded, and the radius comes from `.crt-glass`'s `border-radius`.
+- **Edge:** the phosphor darkens across a band about 5% of the short side wide, where the tube wall shades it. A thin highlight sits on the lip and is brighter along the top. The edge fringes red and blue like the text.
 - Styles live in `globals.css` under `@layer components` (`.crt-*`).
 
 ## Screen
@@ -48,10 +45,7 @@ All tokens are OKLCH. P4 phosphor is slightly cool, so each step keeps a low chr
 
 | Token | Value | Use |
 |---|---|---|
-| `--bezel` | `oklch(0.20 0.003 250)` | Charcoal casing face (broadcast-monitor plastic) |
-| `--bezel-hi` / `--bezel-lo` | `oklch(0.29 …)` / `oklch(0.12 …)` | Lit top edge and shaded bottom edge of the casing |
-| `--facet-top` / `-side` / `-bottom` | `oklch(0.25 / 0.17 / 0.11 …)` | The bezel's slope into the tube, lit from above |
-| `--tube` | `oklch(0.05 0 0)` | Recess between the slope and the glass; also what the shader shows past the curved screen |
+| `--tube` | `oklch(0 0 0)` | The page behind the glass, and what the shader shows past the curved screen |
 | `--glass` | `oklch(0.14 0.004 250)` | Screen when unlit. Never pure black: the glass has a grey cast. |
 | `--phosphor` | `oklch(0.94 0.012 250)` | Primary text, headings, active items |
 | `--phosphor-dim` | `oklch(0.74 0.010 250)` | Body text |
@@ -126,7 +120,7 @@ The canvas is `aria-hidden`. A real DOM copy of `index.md` sits beside it, visua
 ## Stack
 
 - Next.js (App Router) on Vercel.
-- Tailwind v4 with the tokens above in `@theme`. It only styles the bezel, the switch, agent mode, and the fallback, because the screen itself is a canvas.
-- shadcn with Base UI, restyled to the tokens, for the bezel switch and anything else interactive outside the canvas.
+- Tailwind v4 with the tokens above in `@theme`. It only styles the page, agent mode, and the fallback, because the screen itself is a canvas.
+- shadcn with Base UI, restyled to the tokens, for anything interactive outside the canvas.
 - Raw WebGL2 with one shader and no 3D library.
 - Biome/Ultracite for linting.
