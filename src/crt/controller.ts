@@ -1,3 +1,11 @@
+import type { ContributionDay } from "@/lib/github-contributions";
+import {
+  BOOT_CELLS,
+  type BootFrame,
+  type BootStep,
+  drawBoot,
+  stepLine,
+} from "./boot";
 import type { ScreenDoc } from "./doc";
 import {
   CELL_H,
@@ -13,15 +21,22 @@ import {
   sectionAt,
   viewportRows,
 } from "./draw";
-import { layoutDoc, linkAtCell } from "./layout";
+import { dayAt, layoutDoc, linkAtCell } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
 
 const MEASURE = 72;
+const MIN_MEASURE = 60;
 const WIDE_SCREEN = 640;
+const LARGE_SCREEN = 1920;
 const BLINK_MS = 530;
-const INDEX_WIDTH = 16;
-const INDEX_GAP = 6;
+const INDEX_WIDTH = 28;
+const INDEX_GAP = 4;
 const TYPING_TAGS = /^(INPUT|TEXTAREA|SELECT)$/;
+const PORTRAIT_URL = "/boot/portrait.png";
+// The bar fills over BOOT_MS unless loading is slower, then holds full.
+const BOOT_MS = 1800;
+const BOOT_HOLD_MS = 400;
+const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
   new Date().toLocaleTimeString("en-GB", {
@@ -59,27 +74,38 @@ const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement &&
   (target.isContentEditable || TYPING_TAGS.test(target.tagName));
 
-// Integer cell scale only: 1x on narrow glass, 2x otherwise. The grid
-// spans the glass (less a small edge kept clear of the curve); prose stays
-// at the reading measure, and wide screens add the INDEX column beside it.
+// 1x cells on narrow glass, 1.5x (24px rows) on laptops and desktops, 2x
+// on very wide glass. The shader's sharp-bilinear sampling keeps 1.5x
+// crisp. The grid spans the glass less an edge kept clear of the curve;
+// wide grids keep the INDEX column flush right and widen the prose to
+// meet it.
+function cellScale(width: number) {
+  if (width >= LARGE_SCREEN) {
+    return 2;
+  }
+  return width >= WIDE_SCREEN ? 1.5 : 1;
+}
+
 function fitGrid(width: number, height: number) {
-  const scale = width >= WIDE_SCREEN ? 2 : 1;
+  const scale = cellScale(width);
   const cellW = CELL_W * scale;
   const cellH = CELL_H * scale;
-  const edge = scale === 2 ? 2 : 1;
-  const cols = Math.floor(width / cellW) - 2 * edge;
-  const rows = Math.floor(height / cellH) - 2;
+  const edgeCols = scale > 1 ? 5 : 2;
+  const edgeY = 1.5 * cellH;
+  const cols = Math.max(1, Math.floor(width / cellW) - 2 * edgeCols);
+  const rows = Math.max(1, Math.floor((height - 2 * edgeY) / cellH));
+  const indexMeasure = cols - INDEX_GAP - INDEX_WIDTH;
   const measure = Math.min(MEASURE, cols - 2);
-  const hasIndex = cols >= measure + INDEX_GAP + INDEX_WIDTH + 4;
-  const grid: Grid = hasIndex
-    ? {
-        cols,
-        index: { col: cols - INDEX_WIDTH - 2, width: INDEX_WIDTH },
-        margin: 2,
-        measure,
-        rows,
-      }
-    : { cols, margin: Math.floor((cols - measure) / 2), measure, rows };
+  const grid: Grid =
+    indexMeasure >= MIN_MEASURE
+      ? {
+          cols,
+          index: { col: cols - INDEX_WIDTH, width: INDEX_WIDTH },
+          margin: 0,
+          measure: indexMeasure,
+          rows,
+        }
+      : { cols, margin: Math.floor((cols - measure) / 2), measure, rows };
   return {
     box: {
       h: rows * cellH,
@@ -92,7 +118,13 @@ function fitGrid(width: number, height: number) {
   };
 }
 
-type Target = { link: number } | { section: number };
+type Target =
+  | { link: number }
+  | { section: number }
+  | { day: ContributionDay; index: number };
+
+const dayStatus = ({ count, date, weekday }: ContributionDay) =>
+  `${date} ${WEEKDAYS[weekday] ?? ""} · ${count} ${count === 1 ? "CONTRIBUTION" : "CONTRIBUTIONS"}`;
 
 const SCROLL_KEYS: Record<string, (page: number) => number> = {
   ArrowDown: () => 1,
@@ -133,6 +165,16 @@ export class CrtController {
   private fpsSince = 0;
   private wheelRemainder = 0;
   private touchY: number | undefined;
+  private booting: boolean;
+  private bootAt = 0;
+  private bootFullAt: number | undefined;
+  private bootKey = "";
+  private portrait: HTMLImageElement | undefined;
+  private readonly bootSteps: BootStep[] = [
+    // mount() waits for the font before the controller exists.
+    { done: true, file: "VGA8X16.FNT" },
+    { done: false, file: "PORTRAIT.PIX" },
+  ];
 
   private constructor(
     glass: HTMLElement,
@@ -147,6 +189,7 @@ export class CrtController {
     this.copy = copy;
     this.text = ctx.canvas;
     this.dirty = true;
+    this.booting = true;
     this.doc = doc;
     this.ctx = ctx;
     const { palette, tube } = readTokens();
@@ -177,8 +220,66 @@ export class CrtController {
     }
     await document.fonts.load(`${CELL_H}px "${FONT_FAMILY}"`);
     const controller = new CrtController(glass, canvas, copy, gl, ctx, doc);
+    controller.loadPortrait();
     controller.start();
     return controller;
+  }
+
+  private loadPortrait() {
+    const image = new Image();
+    const settle = (ok: boolean) => {
+      this.portrait = ok ? image : undefined;
+      for (const step of this.bootSteps) {
+        step.done = true;
+      }
+      this.dirty = true;
+    };
+    image.addEventListener("load", () => settle(true), { once: true });
+    image.addEventListener("error", () => settle(false), { once: true });
+    image.src = PORTRAIT_URL;
+  }
+
+  private endBoot() {
+    if (this.booting) {
+      this.booting = false;
+      this.dirty = true;
+    }
+  }
+
+  // Progress never runs ahead of real loading. Under reduced motion the
+  // bar jumps to whatever has loaded.
+  private bootFrame(now: number, motion: boolean): BootFrame {
+    const steps = this.bootSteps;
+    const loaded = steps.filter((s) => s.done).length;
+    const real = Math.floor((BOOT_CELLS * loaded) / steps.length);
+    const timed = motion
+      ? Math.floor(((now - this.bootAt) / BOOT_MS) * BOOT_CELLS) + 1
+      : BOOT_CELLS;
+    const filled = Math.min(real, timed, BOOT_CELLS);
+    const i = Math.min(
+      steps.length - 1,
+      Math.floor((filled * steps.length) / BOOT_CELLS)
+    );
+    const step = steps[i] ?? { done: true, file: "" };
+    const stepOk = step.done && filled >= ((i + 1) * BOOT_CELLS) / steps.length;
+    return { filled, step, stepOk };
+  }
+
+  private updateBoot(now: number, motion: boolean) {
+    const frame = this.bootFrame(now, motion);
+    if (frame.filled === BOOT_CELLS) {
+      this.bootFullAt ??= now;
+      if (now - this.bootFullAt >= BOOT_HOLD_MS) {
+        this.endBoot();
+        return;
+      }
+    }
+    const key = `${frame.filled} ${stepLine(frame)}`;
+    if (key !== this.bootKey) {
+      this.bootKey = key;
+      this.dirty = true;
+    }
+    return frame;
   }
 
   dispose() {
@@ -189,6 +290,7 @@ export class CrtController {
   }
 
   private focusLink(id?: number) {
+    this.endBoot();
     const link = id === undefined ? undefined : this.screen.layout.links[id];
     this.state.focus = id;
     this.state.status = link?.href;
@@ -212,6 +314,7 @@ export class CrtController {
     this.teardown.push(() => observer.disconnect());
     this.resize();
     this.startedAt = performance.now();
+    this.bootAt = this.startedAt;
     this.fpsSince = this.startedAt;
     this.frameId = requestAnimationFrame(this.tick);
   }
@@ -265,21 +368,26 @@ export class CrtController {
   }
 
   // Pointer position -> the same barrel curve the shader samples with ->
-  // text cell. No inverse transform needed.
-  private cellAt(clientX: number, clientY: number) {
+  // font pixel on the text grid. No inverse transform needed.
+  private gridPoint(clientX: number, clientY: number) {
     const rect = this.glass.getBoundingClientRect();
     const [u, v] = barrel(
       (clientX - rect.left) / rect.width,
       (clientY - rect.top) / rect.height
     );
     return {
-      col: Math.floor((u * rect.width - this.box.x) / (CELL_W * this.scale)),
-      row: Math.floor((v * rect.height - this.box.y) / (CELL_H * this.scale)),
+      x: (u * rect.width - this.box.x) / this.scale,
+      y: (v * rect.height - this.box.y) / this.scale,
     };
   }
 
   private targetAt(clientX: number, clientY: number): Target | undefined {
-    const { col, row } = this.cellAt(clientX, clientY);
+    if (this.booting) {
+      return;
+    }
+    const { x, y } = this.gridPoint(clientX, clientY);
+    const col = Math.floor(x / CELL_W);
+    const row = Math.floor(y / CELL_H);
     const { grid, layout } = this.screen;
     const section = sectionAt(this.screen, row, col);
     if (section !== undefined) {
@@ -290,39 +398,62 @@ export class CrtController {
     }
     const docRow = row - CONTENT_TOP + this.state.scroll;
     const link = linkAtCell(layout, docRow, col - grid.margin);
-    return link === undefined ? undefined : { link };
+    if (link !== undefined) {
+      return { link };
+    }
+    const docY = y + (this.state.scroll - CONTENT_TOP) * CELL_H;
+    const hit = dayAt(layout, docY, col - grid.margin);
+    if (!hit) {
+      return;
+    }
+    const day = hit.graph.grid.days[hit.index];
+    return day && { day, index: hit.index };
   }
 
-  private statusFor(link?: number, section?: number) {
-    if (link !== undefined) {
-      return this.screen.layout.links[link]?.href;
+  private statusFor(target?: Target) {
+    if (!target) {
+      return;
     }
-    if (section !== undefined) {
-      return `JUMP TO ${this.screen.layout.sections[section]?.label ?? ""}`;
+    if ("link" in target) {
+      return this.screen.layout.links[target.link]?.href;
     }
+    if ("section" in target) {
+      const { label } = this.screen.layout.sections[target.section] ?? {};
+      return `JUMP TO ${label ?? ""}`;
+    }
+    return dayStatus(target.day);
   }
 
   private setHover(target?: Target) {
     const link = target && "link" in target ? target.link : undefined;
     const section = target && "section" in target ? target.section : undefined;
-    if (link === this.state.hover && section === this.state.hoverSection) {
+    const day = target && "day" in target ? target.index : undefined;
+    const { state } = this;
+    if (
+      link === state.hover &&
+      section === state.hoverSection &&
+      day === state.day
+    ) {
       return;
     }
-    this.state.hover = link;
-    this.state.hoverSection = section;
-    this.state.status = this.statusFor(link, section);
-    this.canvas.style.cursor = target ? "pointer" : "default";
+    state.hover = link;
+    state.hoverSection = section;
+    state.day = day;
+    state.status = this.statusFor(target);
+    const clickable = link !== undefined || section !== undefined;
+    this.canvas.style.cursor = clickable ? "pointer" : "default";
     this.dirty = true;
   }
 
   private activate(target?: Target) {
-    if (target && "section" in target) {
+    if (!target || "day" in target) {
+      return;
+    }
+    if ("section" in target) {
       this.scrollTo(this.screen.layout.sections[target.section]?.row ?? 0);
       return;
     }
-    const href = target
-      ? this.screen.layout.links[target.link]?.href
-      : undefined;
+    const href = this.screen.layout.links[target.link]?.href;
     if (href) {
       window.open(href, "_blank", "noopener,noreferrer");
     }
@@ -357,9 +488,13 @@ export class CrtController {
       this.touchY = undefined;
     });
     this.listen(canvas, "pointerleave", () => this.setHover(undefined));
-    this.listen(canvas, "click", (event) =>
-      this.activate(this.targetAt(event.clientX, event.clientY))
-    );
+    this.listen(canvas, "click", (event) => {
+      if (this.booting) {
+        this.endBoot();
+        return;
+      }
+      this.activate(this.targetAt(event.clientX, event.clientY));
+    });
   }
 
   // Tab moves through the real links in the HTML copy; the canvas shows
@@ -378,6 +513,11 @@ export class CrtController {
 
   private bindKeys() {
     this.listen(window, "keydown", (event) => {
+      // Any key skips the boot screen; Tab also moves focus as usual.
+      if (this.booting && event.key !== "Tab") {
+        this.endBoot();
+        return;
+      }
       const move = SCROLL_KEYS[event.key];
       const modified = event.altKey || event.ctrlKey || event.metaKey;
       if (!move || modified || isTyping(event.target)) {
@@ -433,9 +573,22 @@ export class CrtController {
       this.updateFps(now);
     }
 
+    const boot = this.booting ? this.updateBoot(now, motion) : undefined;
     const redraw = this.takeDirty();
     if (redraw) {
-      drawScreen(this.ctx, this.screen, this.state);
+      const { screen } = this;
+      if (boot) {
+        drawBoot(
+          this.ctx,
+          screen.grid,
+          screen.palette,
+          screen.ascent,
+          this.portrait,
+          boot
+        );
+      } else {
+        drawScreen(this.ctx, screen, this.state);
+      }
       this.renderer.upload(this.text);
     }
     // Under reduced motion the frame is static, so only redraw on change.
