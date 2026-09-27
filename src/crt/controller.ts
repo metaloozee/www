@@ -25,7 +25,13 @@ import {
 } from "./draw";
 import { dayAt, layoutDoc, linkAtCell } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
-import { play, soundEnabled, subscribeSound, toggleSound } from "./sound";
+import {
+  play,
+  soundEnabled,
+  soundUnlocked,
+  subscribeSound,
+  toggleSound,
+} from "./sound";
 
 const MEASURE = 72;
 const MIN_MEASURE = 60;
@@ -45,6 +51,8 @@ const LINK_OPEN_DELAY_MS = 40;
 // Sweeping the pointer across several links ticks at most this often.
 const HOVER_SOUND_GAP_MS = 60;
 const AGENT_STATUS = "SWITCH TO AGENT VIEW";
+const KEY_PROMPT = "PRESS ANY KEY TO CONTINUE";
+const TAP_PROMPT = "TAP TO CONTINUE";
 const soundStatus = () =>
   soundEnabled() ? "SOUND ON · CLICK TO MUTE" : "SOUND OFF · CLICK TO UNMUTE";
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
@@ -192,6 +200,7 @@ export class CrtController {
   private bootFullAt: number | undefined;
   private bootKey = "";
   private bootOks = 0;
+  private promptAt: number | undefined;
   private offAt: number | undefined;
   private onAt: number | undefined;
   private readonly powerOn: boolean;
@@ -280,6 +289,11 @@ export class CrtController {
 
   private endBoot() {
     if (this.booting) {
+      // The press that unlocked audio gets the beep the full bar played
+      // silently.
+      if (this.promptAt !== undefined) {
+        play("beep");
+      }
       this.booting = false;
       this.dirty = true;
     }
@@ -324,16 +338,30 @@ export class CrtController {
     if (frame.filled === BOOT_CELLS) {
       this.bootFullAt ??= now;
       if (now - this.bootFullAt >= BOOT_HOLD_MS) {
-        this.endBoot();
-        return;
+        if (!this.needsKey()) {
+          this.endBoot();
+          return;
+        }
+        this.promptAt ??= now;
+        const prompt = matchMedia("(hover: none)").matches
+          ? TAP_PROMPT
+          : KEY_PROMPT;
+        frame.prompt = `${prompt}${this.state.cursorOn ? "_" : " "}`;
       }
     }
-    const key = `${frame.filled} ${stepLine(frame)}`;
+    const key = `${frame.filled} ${stepLine(frame)} ${frame.prompt ?? ""}`;
     if (key !== this.bootKey) {
       this.bootKey = key;
       this.dirty = true;
     }
     return frame;
+  }
+
+  // Browsers hold audio until a click or key press, so a first visit
+  // waits for one before leaving the boot screen. A return from agent mode
+  // was itself a click.
+  private needsKey() {
+    return !(this.powerOn || soundUnlocked()) && soundEnabled();
   }
 
   // Plays the power-off collapse, then hands over to agent mode. Reduced

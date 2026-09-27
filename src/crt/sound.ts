@@ -35,6 +35,9 @@ export function soundEnabled() {
 
 export const serverSoundEnabled = () => false;
 
+// False until the first click or key press lets audio start.
+export const soundUnlocked = () => context !== null;
+
 export function subscribeSound(listener: () => void) {
   listeners.add(listener);
   return () => {
