@@ -7,9 +7,8 @@ export interface Span {
 
 export type Block =
   | { kind: "prompt"; text: string }
-  // `section` names the heading in the INDEX column; `file` is what the
-  // title bar shows while the section is on screen.
-  | { kind: "heading"; file?: string; section?: string; text: string }
+  // `section` names the heading in the INDEX column.
+  | { kind: "heading"; section?: string; text: string }
   | { kind: "paragraph"; spans: Span[] }
   | { kind: "facts"; rows: { label: string; value: Span[] }[] }
   | { kind: "entry"; index: string; title: Span; meta: string; body: string }
@@ -18,7 +17,9 @@ export type Block =
 
 export interface ScreenDoc {
   blocks: Block[];
-  path: string;
+  // Heading and one-line summary for the agent-mode markdown.
+  name: string;
+  summary: string;
   title: string;
 }
 

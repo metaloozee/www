@@ -1,6 +1,6 @@
 // Barrel curvature, shared by the fragment shader and pointer hit-testing.
 // Dividing by (1 + K) keeps the edge midpoints fixed and pulls the centre in.
-export const CURVATURE = 0.03;
+export const CURVATURE = 0.05;
 
 export function barrel(u: number, v: number): [number, number] {
   const x = u * 2 - 1;
@@ -28,8 +28,9 @@ uniform float uDpr;
 uniform float uRadius;  // glass corner radius, device pixels
 uniform float uTime;
 uniform float uMotion;   // 0 under prefers-reduced-motion
+uniform float uOff;      // power-off progress, 0 = on, 1 = dark
 uniform vec3 uGlass;
-uniform vec3 uTube;     // tube interior visible past the curved screen
+uniform vec3 uTube;     // the void past the curved screen
 
 in vec2 vUv;
 out vec4 outColor;
@@ -40,6 +41,13 @@ vec2 barrel(vec2 uv) {
   vec2 c = uv * 2.0 - 1.0;
   c *= (1.0 + K * dot(c, c)) / (1.0 + K);
   return c * 0.5 + 0.5;
+}
+
+// Signed distance to the rounded screen edge in device pixels, < 0 inside.
+float screenDist(vec2 px) {
+  vec2 half_ = uScreen * 0.5;
+  vec2 q = abs(px - half_) - half_ + uRadius;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - uRadius;
 }
 
 float hash(vec2 p) {
@@ -60,15 +68,22 @@ vec3 textAt(vec2 px) {
   return textureLod(uText, (floor(texel) + f) / uTexSize, 0.0).rgb;
 }
 
-void main() {
-  vec2 uv = barrel(vUv);
-  vec2 px = uv * uScreen;
+// Power-off: the picture squeezes to a bright line, the line to a dot,
+// then the dot fades.
+vec2 collapse(vec2 uv) {
+  float sy = max(1.0 - smoothstep(0.0, 0.45, uOff), 0.004);
+  float sx = max(1.0 - smoothstep(0.4, 0.8, uOff), 0.004);
+  return 0.5 + (uv - 0.5) / vec2(sx, sy);
+}
 
-  vec2 half_ = uScreen * 0.5;
-  float radius = uRadius;
-  vec2 q = abs(px - half_) - half_ + radius;
-  float dist = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - radius;
-  float mask = 1.0 - smoothstep(-1.0, 1.0, dist);
+void main() {
+  vec2 st = collapse(vUv);
+  if (any(lessThan(st, vec2(0.0))) || any(greaterThan(st, vec2(1.0)))) {
+    outColor = vec4(uTube, 1.0);
+    return;
+  }
+  vec2 uv = barrel(st);
+  vec2 px = uv * uScreen;
 
   vec2 fromCentre = uv - 0.5;
   float edge = clamp(length(fromCentre) * 1.4142, 0.0, 1.0);
@@ -104,6 +119,23 @@ void main() {
   col *= 1.0 + 0.005 * uMotion * sin(t * 57.0);
   col += (hash(px + fract(t) * 173.0) - 0.5) * 0.03;
 
+  // Glass edge: a broad falloff where the tube wall shades the phosphor,
+  // then a thin highlight on the lip, brighter along the top.
+  float dist = screenDist(px);
+  float rimWidth = 0.05 * min(uScreen.x, uScreen.y);
+  col *= mix(0.45, 1.0, smoothstep(0.0, rimWidth, -dist));
+  float lipD = (dist + 2.5 * uDpr) / (1.5 * uDpr);
+  col += exp(-lipD * lipD) * mix(0.05, 0.12, 1.0 - uv.y);
+
+  // The edge fringes like the text, so the rim picks up colour on the
+  // side facing away from the centre.
+  vec3 mask = 1.0 - vec3(
+    smoothstep(-uDpr, uDpr, screenDist(px + fringe)),
+    smoothstep(-uDpr, uDpr, dist),
+    smoothstep(-uDpr, uDpr, screenDist(px - fringe))
+  );
+  col = mix(col, vec3(1.0), smoothstep(0.2, 0.45, uOff));
+  col *= 1.0 - smoothstep(0.8, 1.0, uOff);
   outColor = vec4(mix(uTube, col, mask), 1.0);
 }`;
 
@@ -113,6 +145,7 @@ export interface Frame {
   content: [number, number, number, number];
   dpr: number;
   motion: boolean;
+  off: number;
   radius: number;
   time: number;
 }
@@ -175,6 +208,7 @@ export class CrtRenderer {
       "uRadius",
       "uTime",
       "uMotion",
+      "uOff",
       "uGlass",
       "uTube",
     ];
@@ -211,6 +245,7 @@ export class CrtRenderer {
     this.gl.uniform1f(u.uRadius, frame.radius);
     this.gl.uniform1f(u.uTime, frame.time);
     this.gl.uniform1f(u.uMotion, frame.motion ? 1 : 0);
+    this.gl.uniform1f(u.uOff, frame.off);
     this.gl.drawArrays(this.gl.TRIANGLES, 0, 3);
   }
 }

@@ -1,4 +1,8 @@
-import type { ContributionGrid } from "@/lib/github-contributions";
+import {
+  type ContributionGrid,
+  getContributions,
+  toContributionGrid,
+} from "@/lib/github-contributions";
 import type { ScreenDoc } from "./doc";
 
 export const GITHUB_USER = "metaloozee";
@@ -10,7 +14,6 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
   blocks: [
     { kind: "prompt", text: "C:\\HOME> type about.txt" },
     {
-      file: "ABOUT.TXT",
       kind: "heading",
       section: "ABOUT",
       text: "HEY THERE, I'M AYAN.",
@@ -59,7 +62,6 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
     { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> dir projects /w" },
     {
-      file: "PROJECTS",
       kind: "heading",
       section: "PROJECTS",
       text: "PROJECTS",
@@ -91,7 +93,6 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
     { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> type contact.txt" },
     {
-      file: "CONTACT.TXT",
       kind: "heading",
       section: "CONTACT",
       text: "CONTACT",
@@ -126,6 +127,10 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
       ],
     },
   ],
-  path: "C:\\HOME",
-  title: "AYAN.SYS",
+  name: "Ayan Parkar",
+  summary: "Programmer from Mumbai, India. Full-stack development and AI.",
+  title: "AYAN.WTF",
 });
+
+export const loadDoc = async () =>
+  sampleDoc(toContributionGrid(await getContributions(GITHUB_USER)));

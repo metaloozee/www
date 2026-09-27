@@ -32,7 +32,6 @@ export interface ScreenLink {
 }
 
 export interface Section {
-  file?: string;
   label: string;
   // Row the section starts on: its prompt line when one leads the heading.
   row: number;
@@ -284,7 +283,6 @@ export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
     }
     const lead = doc.blocks[i - 1]?.kind === "prompt" ? i - 1 : i;
     sections.push({
-      file: block.file,
       label: block.section,
       row: rowOf[blockStart[lead] ?? 0] ?? 0,
     });

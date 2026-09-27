@@ -1,11 +1,12 @@
-import { CrtScreen } from "@/components/crt-screen";
-import { GITHUB_USER, sampleDoc } from "@/crt/sample-doc";
-import {
-  getContributions,
-  toContributionGrid,
-} from "@/lib/github-contributions";
+import { connection } from "next/server";
+import { SiteView } from "@/components/site-view";
+import { toMarkdown } from "@/crt/markdown";
+import { loadDoc } from "@/crt/sample-doc";
 
 export default async function IndexPage() {
-  const grid = toContributionGrid(await getContributions(GITHUB_USER));
-  return <CrtScreen doc={sampleDoc(grid)} />;
+  // Render per request so ?view=agent is known on the server and the
+  // right view arrives in the HTML.
+  await connection();
+  const doc = await loadDoc();
+  return <SiteView doc={doc} markdown={toMarkdown(doc)} />;
 }

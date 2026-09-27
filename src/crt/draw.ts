@@ -31,6 +31,8 @@ export interface ScreenState {
   focus?: number;
   hover?: number;
   hoverSection?: number;
+  // Pointer or keyboard focus on the HUMAN/AGENT switch.
+  modeHover?: boolean;
   scroll: number;
   status?: string;
 }
@@ -40,7 +42,6 @@ export interface Screen {
   grid: Grid;
   layout: ScreenLayout;
   palette: Palette;
-  path: string;
   title: string;
 }
 
@@ -222,6 +223,44 @@ function drawIndex(
   }
 }
 
+// The CRT is always in HUMAN mode, so HUMAN is the lit segment, in reverse
+// video against the inverted title bar. AGENT gets a box on hover or focus.
+const HUMAN_SEGMENT = " HUMAN ";
+const AGENT_SEGMENT = " AGENT ";
+const MODE_SWITCH_WIDTH = HUMAN_SEGMENT.length + AGENT_SEGMENT.length;
+
+// Title-bar columns of the switch, right of which sits the clock.
+export function modeSwitchCols(grid: Grid, clock: string) {
+  const end = grid.cols - clock.length - 3;
+  return { end, start: end - MODE_SWITCH_WIDTH };
+}
+
+function drawModeSwitch(
+  ctx: CanvasRenderingContext2D,
+  screen: Screen,
+  state: ScreenState
+) {
+  const { palette } = screen;
+  const { start } = modeSwitchCols(screen.grid, state.clock);
+  const agent = start + HUMAN_SEGMENT.length;
+  ctx.fillStyle = palette.glass;
+  ctx.fillRect(start * CELL_W, 0, HUMAN_SEGMENT.length * CELL_W, CELL_H);
+  if (state.modeHover) {
+    ctx.strokeStyle = palette.glass;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      agent * CELL_W + 0.5,
+      0.5,
+      AGENT_SEGMENT.length * CELL_W - 1,
+      CELL_H - 1
+    );
+  }
+  ctx.fillStyle = palette.phosphor;
+  textAt(ctx, screen, HUMAN_SEGMENT, start, 0);
+  ctx.fillStyle = palette.glass;
+  textAt(ctx, screen, AGENT_SEGMENT, agent, 0);
+}
+
 function drawBars(
   ctx: CanvasRenderingContext2D,
   screen: Screen,
@@ -233,12 +272,9 @@ function drawBars(
   ctx.fillStyle = palette.phosphor;
   ctx.fillRect(0, 0, grid.cols * CELL_W, CELL_H);
   ctx.fillStyle = palette.glass;
-  const { file } =
-    screen.layout.sections[activeSection(screen, state.scroll)] ?? {};
-  const path = file ? `${screen.path}\\${file}` : screen.path;
   textAt(ctx, screen, screen.title, 1, 0);
-  textAt(ctx, screen, path, Math.floor((grid.cols - path.length) / 2), 0);
   textAt(ctx, screen, state.clock, grid.cols - state.clock.length - 1, 0);
+  drawModeSwitch(ctx, screen, state);
 
   const last = grid.rows - 1;
   const pad = (n: number) => String(n).padStart(3, "0");

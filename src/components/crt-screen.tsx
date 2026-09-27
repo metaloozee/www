@@ -1,16 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { GitHubContributions } from "@/components/github-contributions";
 import { CrtController } from "@/crt/controller";
 import { type Block, collectLinks, type ScreenDoc, type Span } from "@/crt/doc";
 
-export function CrtScreen({ doc }: { doc: ScreenDoc }) {
+interface CrtScreenProps {
+  doc: ScreenDoc;
+  onAgent: () => void;
+  // Mounted by a switch back from agent mode: play the power-on and give
+  // the mode switch focus.
+  returning?: boolean;
+}
+
+export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   const glassRef = useRef<HTMLDivElement>(null);
+  const switchRef = useRef<HTMLButtonElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<CrtController | null>(null);
-  const [live, setLive] = useState(false);
+  // undefined while the controller mounts. On a return the glass stays
+  // dark meanwhile rather than flashing the HTML fallback.
+  const [live, setLive] = useState(returning ? undefined : false);
+  const [powerOn] = useState(returning ?? false);
+  const handOver = useEffectEvent(onAgent);
+  // Without a controller (no WebGL) there is no power-off to play.
+  const switchToAgent = useCallback(() => {
+    if (controllerRef.current) {
+      controllerRef.current.powerOff();
+    } else {
+      onAgent();
+    }
+  }, [onAgent]);
+
+  useEffect(() => {
+    if (powerOn) {
+      switchRef.current?.focus();
+    }
+  }, [powerOn]);
 
   useEffect(() => {
     const glass = glassRef.current;
@@ -20,7 +54,10 @@ export function CrtScreen({ doc }: { doc: ScreenDoc }) {
       return;
     }
     let disposed = false;
-    CrtController.mount(glass, canvas, copy, doc)
+    CrtController.mount(glass, canvas, copy, doc, {
+      onAgent: () => handOver(),
+      powerOn,
+    })
       .then((controller) => {
         if (disposed) {
           controller?.dispose();
@@ -35,61 +72,38 @@ export function CrtScreen({ doc }: { doc: ScreenDoc }) {
       controllerRef.current?.dispose();
       controllerRef.current = null;
     };
-  }, [doc]);
+  }, [doc, powerOn]);
 
   return (
     <main className="crt-casing">
-      <div className="crt-bevel">
-        <div className="crt-tube">
-          <div className="crt-glass" ref={glassRef}>
-            <canvas
-              className={
-                live ? "absolute inset-0 size-full touch-none" : "hidden"
-              }
-              ref={canvasRef}
-            />
-            <div
-              className={
-                live
-                  ? "sr-only"
-                  : "absolute inset-0 overflow-y-auto bg-glass p-6 font-screen text-phosphor-dim"
-              }
-              ref={copyRef}
-            >
-              <DocCopy doc={doc} />
-            </div>
-          </div>
+      <div className="crt-glass" ref={glassRef}>
+        <canvas
+          className={
+            live === false ? "hidden" : "absolute inset-0 size-full touch-none"
+          }
+          ref={canvasRef}
+        />
+        <div
+          className={
+            live === false
+              ? "absolute inset-0 overflow-y-auto bg-glass p-6 font-screen text-phosphor-dim"
+              : "sr-only"
+          }
+          ref={copyRef}
+        >
+          <button
+            className="mb-6 ml-auto block border border-phosphor-faint px-2 text-phosphor"
+            data-mode-switch
+            onClick={switchToAgent}
+            ref={switchRef}
+            type="button"
+          >
+            Switch to agent view
+          </button>
+          <DocCopy doc={doc} />
         </div>
       </div>
-      <BezelChin />
     </main>
-  );
-}
-
-// Grille, control strip, rocker and power moulded into the casing.
-// Decorative until the rocker becomes the Human/Agent mode switch.
-function BezelChin() {
-  return (
-    <div aria-hidden="true" className="crt-chin">
-      <span className="crt-logo">AYAN</span>
-      <span className="crt-grille max-sm:hidden" />
-      <div className="crt-strip">
-        {["V-HOLD", "BRIGHT", "CONTRAST", "SHARP"].map((label) => (
-          <span className="crt-key crt-silk max-md:hidden" key={label}>
-            {label}
-          </span>
-        ))}
-        <span className="flex items-center gap-3">
-          <span className="crt-silk crt-silk-on">HUMAN</span>
-          <span className="crt-rocker" />
-          <span className="crt-silk">AGENT</span>
-        </span>
-      </div>
-      <span className="flex items-center gap-3">
-        <span className="crt-led" />
-        <span className="crt-power" />
-      </span>
-    </div>
   );
 }
 

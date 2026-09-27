@@ -15,6 +15,7 @@ import {
   FONT_FAMILY,
   type Grid,
   maxScroll,
+  modeSwitchCols,
   type Palette,
   type Screen,
   type ScreenState,
@@ -36,6 +37,8 @@ const PORTRAIT_URL = "/boot/portrait.png";
 // The bar fills over BOOT_MS unless loading is slower, then holds full.
 const BOOT_MS = 1800;
 const BOOT_HOLD_MS = 400;
+const POWER_MS = 400;
+const AGENT_STATUS = "SWITCH TO AGENT VIEW";
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
@@ -90,12 +93,12 @@ function fitGrid(width: number, height: number) {
   const scale = cellScale(width);
   const cellW = CELL_W * scale;
   const cellH = CELL_H * scale;
-  const edgeCols = scale > 1 ? 5 : 2;
+  const edgeCols = scale > 1 ? 5 : 3;
   const edgeY = 1.5 * cellH;
   const cols = Math.max(1, Math.floor(width / cellW) - 2 * edgeCols);
   const rows = Math.max(1, Math.floor((height - 2 * edgeY) / cellH));
   const indexMeasure = cols - INDEX_GAP - INDEX_WIDTH;
-  const measure = Math.min(MEASURE, cols - 2);
+  const measure = Math.max(1, Math.min(MEASURE, cols - 2));
   const grid: Grid =
     indexMeasure >= MIN_MEASURE
       ? {
@@ -118,7 +121,15 @@ function fitGrid(width: number, height: number) {
   };
 }
 
+export interface MountOptions {
+  onAgent: () => void;
+  // Play the power-on (dot, line, picture) before the boot screen, for a
+  // return from agent mode.
+  powerOn: boolean;
+}
+
 type Target =
+  | { mode: "agent" }
   | { link: number }
   | { section: number }
   | { day: ContributionDay; index: number };
@@ -139,6 +150,7 @@ export class CrtController {
   private readonly glass: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly doc: ScreenDoc;
+  private readonly onAgent: () => void;
   private readonly renderer: CrtRenderer;
   private readonly text: HTMLCanvasElement;
   private readonly copy: HTMLElement;
@@ -169,6 +181,9 @@ export class CrtController {
   private bootAt = 0;
   private bootFullAt: number | undefined;
   private bootKey = "";
+  private offAt: number | undefined;
+  private onAt: number | undefined;
+  private readonly powerOn: boolean;
   private portrait: HTMLImageElement | undefined;
   private readonly bootSteps: BootStep[] = [
     // mount() waits for the font before the controller exists.
@@ -182,9 +197,12 @@ export class CrtController {
     copy: HTMLElement,
     gl: WebGL2RenderingContext,
     ctx: CanvasRenderingContext2D,
-    doc: ScreenDoc
+    doc: ScreenDoc,
+    { onAgent, powerOn }: MountOptions
   ) {
     this.glass = glass;
+    this.onAgent = onAgent;
+    this.powerOn = powerOn;
     this.canvas = canvas;
     this.copy = copy;
     this.text = ctx.canvas;
@@ -200,7 +218,6 @@ export class CrtController {
       grid: { cols: 1, margin: 0, measure: 1, rows: 1 },
       layout: layoutDoc(doc, 1),
       palette,
-      path: doc.path,
       title: doc.title,
     };
   }
@@ -211,7 +228,8 @@ export class CrtController {
     glass: HTMLElement,
     canvas: HTMLCanvasElement,
     copy: HTMLElement,
-    doc: ScreenDoc
+    doc: ScreenDoc,
+    options: MountOptions
   ): Promise<CrtController | null> {
     const gl = canvas.getContext("webgl2", { alpha: false, antialias: false });
     const ctx = document.createElement("canvas").getContext("2d");
@@ -219,7 +237,15 @@ export class CrtController {
       return null;
     }
     await document.fonts.load(`${CELL_H}px "${FONT_FAMILY}"`);
-    const controller = new CrtController(glass, canvas, copy, gl, ctx, doc);
+    const controller = new CrtController(
+      glass,
+      canvas,
+      copy,
+      gl,
+      ctx,
+      doc,
+      options
+    );
     controller.loadPortrait();
     controller.start();
     return controller;
@@ -255,7 +281,7 @@ export class CrtController {
     const timed = motion
       ? Math.floor(((now - this.bootAt) / BOOT_MS) * BOOT_CELLS) + 1
       : BOOT_CELLS;
-    const filled = Math.min(real, timed, BOOT_CELLS);
+    const filled = Math.max(0, Math.min(real, timed, BOOT_CELLS));
     const i = Math.min(
       steps.length - 1,
       Math.floor((filled * steps.length) / BOOT_CELLS)
@@ -280,6 +306,19 @@ export class CrtController {
       this.dirty = true;
     }
     return frame;
+  }
+
+  // Plays the power-off collapse, then hands over to agent mode. Reduced
+  // motion skips straight to the handover.
+  powerOff() {
+    if (this.offAt !== undefined) {
+      return;
+    }
+    if (this.reducedMotion.matches) {
+      this.onAgent();
+      return;
+    }
+    this.offAt = performance.now();
   }
 
   dispose() {
@@ -315,6 +354,10 @@ export class CrtController {
     this.resize();
     this.startedAt = performance.now();
     this.bootAt = this.startedAt;
+    if (this.powerOn && !this.reducedMotion.matches) {
+      this.onAt = this.startedAt;
+      this.bootAt += POWER_MS;
+    }
     this.fpsSince = this.startedAt;
     this.frameId = requestAnimationFrame(this.tick);
   }
@@ -382,13 +425,17 @@ export class CrtController {
   }
 
   private targetAt(clientX: number, clientY: number): Target | undefined {
-    if (this.booting) {
+    if (this.booting || this.offAt !== undefined) {
       return;
     }
     const { x, y } = this.gridPoint(clientX, clientY);
     const col = Math.floor(x / CELL_W);
     const row = Math.floor(y / CELL_H);
     const { grid, layout } = this.screen;
+    const toggle = modeSwitchCols(grid, this.state.clock);
+    if (row === 0 && col >= toggle.start && col < toggle.end) {
+      return { mode: "agent" };
+    }
     const section = sectionAt(this.screen, row, col);
     if (section !== undefined) {
       return { section };
@@ -414,6 +461,9 @@ export class CrtController {
     if (!target) {
       return;
     }
+    if ("mode" in target) {
+      return AGENT_STATUS;
+    }
     if ("link" in target) {
       return this.screen.layout.links[target.link]?.href;
     }
@@ -428,25 +478,32 @@ export class CrtController {
     const link = target && "link" in target ? target.link : undefined;
     const section = target && "section" in target ? target.section : undefined;
     const day = target && "day" in target ? target.index : undefined;
+    const mode = target !== undefined && "mode" in target;
     const { state } = this;
     if (
       link === state.hover &&
       section === state.hoverSection &&
-      day === state.day
+      day === state.day &&
+      mode === Boolean(state.modeHover)
     ) {
       return;
     }
     state.hover = link;
     state.hoverSection = section;
     state.day = day;
+    state.modeHover = mode;
     state.status = this.statusFor(target);
-    const clickable = link !== undefined || section !== undefined;
+    const clickable = link !== undefined || section !== undefined || mode;
     this.canvas.style.cursor = clickable ? "pointer" : "default";
     this.dirty = true;
   }
 
   private activate(target?: Target) {
     if (!target || "day" in target) {
+      return;
+    }
+    if ("mode" in target) {
+      this.powerOff();
       return;
     }
     if ("section" in target) {
@@ -497,18 +554,36 @@ export class CrtController {
     });
   }
 
-  // Tab moves through the real links in the HTML copy; the canvas shows
-  // whichever one has focus.
+  // Tab moves through the mode switch and the real links in the HTML
+  // copy; the canvas shows whichever one has focus.
   private bindFocus() {
     const linkId = (target: EventTarget | null) => {
       const id =
         target instanceof HTMLElement ? target.dataset.link : undefined;
       return id === undefined ? undefined : Number(id);
     };
-    this.listen(this.copy, "focusin", (event) =>
-      this.focusLink(linkId(event.target))
-    );
-    this.listen(this.copy, "focusout", () => this.focusLink(undefined));
+    // Unlike a link, the switch can hold focus through the boot screen: it
+    // gets focus on the way back from agent mode, before this controller
+    // exists.
+    const focusSwitch = (target: EventTarget | null) => {
+      const on =
+        target instanceof HTMLElement &&
+        target.dataset.modeSwitch !== undefined;
+      this.state.modeHover = on;
+      this.state.status = on ? AGENT_STATUS : undefined;
+      this.dirty = true;
+      return on;
+    };
+    focusSwitch(document.activeElement);
+    this.listen(this.copy, "focusin", (event) => {
+      if (!focusSwitch(event.target)) {
+        this.focusLink(linkId(event.target));
+      }
+    });
+    this.listen(this.copy, "focusout", () => {
+      this.state.modeHover = false;
+      this.focusLink(undefined);
+    });
   }
 
   private bindKeys() {
@@ -559,6 +634,22 @@ export class CrtController {
     this.dirty = true;
   }
 
+  // 0 with the picture fully on, 1 fully dark. Power-on runs the power-off
+  // backwards.
+  private powerLevel(now: number) {
+    if (this.offAt !== undefined) {
+      return Math.min(1, (now - this.offAt) / POWER_MS);
+    }
+    if (this.onAt === undefined) {
+      return 0;
+    }
+    const level = Math.max(0, 1 - (now - this.onAt) / POWER_MS);
+    if (level === 0) {
+      this.onAt = undefined;
+    }
+    return level;
+  }
+
   private takeDirty() {
     const wasDirty = this.dirty;
     this.dirty = false;
@@ -573,6 +664,7 @@ export class CrtController {
       this.updateFps(now);
     }
 
+    const off = this.powerLevel(now);
     const boot = this.booting ? this.updateBoot(now, motion) : undefined;
     const redraw = this.takeDirty();
     if (redraw) {
@@ -592,15 +684,20 @@ export class CrtController {
       this.renderer.upload(this.text);
     }
     // Under reduced motion the frame is static, so only redraw on change.
-    if (redraw || motion) {
+    if (redraw || motion || off > 0) {
       const { box, dpr } = this;
       this.renderer.render({
         content: [box.x * dpr, box.y * dpr, box.w * dpr, box.h * dpr],
         dpr,
         motion,
+        off,
         radius: this.radius * dpr,
         time: (now - this.startedAt) / 1000,
       });
+    }
+    if (off === 1) {
+      cancelAnimationFrame(this.frameId);
+      this.onAgent();
     }
   };
 }

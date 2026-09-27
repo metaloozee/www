@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import "./globals.css";
 
 const DESCRIPTION =
@@ -46,7 +47,9 @@ export default function RootLayout({
           type="font/woff"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <NuqsAdapter>{children}</NuqsAdapter>
+      </body>
     </html>
   );
 }
