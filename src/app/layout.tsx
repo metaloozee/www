@@ -37,6 +37,15 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      <head>
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/ibm-vga-8x16.woff"
+          rel="preload"
+          type="font/woff"
+        />
+      </head>
       <body>{children}</body>
     </html>
   );
