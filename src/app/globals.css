@@ -3,6 +3,16 @@
 @tailwind utilities;
 
 @layer base {
+  /* CRT redesign tokens, see DESIGN.md. Move to @theme with Tailwind v4. */
+  :root {
+    --color-glass: oklch(0.14 0.004 250);
+    --color-phosphor-ghost: oklch(0.26 0.006 250);
+    --color-phosphor-faint: oklch(0.58 0.008 250);
+    --color-phosphor-dim: oklch(0.74 0.01 250);
+    --color-phosphor: oklch(0.94 0.012 250);
+    --color-phosphor-hot: oklch(0.98 0.008 250);
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
