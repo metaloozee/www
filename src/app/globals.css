@@ -1,10 +1,23 @@
 @import "tailwindcss";
 
+/* Px437 IBM VGA 8x16 from The Ultimate Oldschool PC Font Pack by VileR,
+   int10h.org, CC BY-SA 4.0. See public/fonts/LICENSE-oldschool-pc-font-pack.txt */
+@font-face {
+  font-family: "IBM VGA 8x16";
+  font-display: block;
+  src: url("/fonts/ibm-vga-8x16.woff") format("woff");
+}
+
 /* Tokens from DESIGN.md. `static` keeps every variable on :root because
    components also read them through inline styles and SVG fills. */
 @theme static {
-  --color-bezel: oklch(0.1 0 0);
-  --color-bezel-edge: oklch(0.22 0 0);
+  --color-bezel: oklch(0.2 0.003 250);
+  --color-bezel-hi: oklch(0.29 0.003 250);
+  --color-bezel-lo: oklch(0.12 0.003 250);
+  --color-facet-top: oklch(0.25 0.003 250);
+  --color-facet-side: oklch(0.17 0.003 250);
+  --color-facet-bottom: oklch(0.11 0.003 250);
+  --color-tube: oklch(0.05 0 0);
   --color-glass: oklch(0.14 0.004 250);
   --color-phosphor-ghost: oklch(0.26 0.006 250);
   --color-phosphor-faint: oklch(0.58 0.008 250);
@@ -12,7 +25,7 @@
   --color-phosphor: oklch(0.94 0.012 250);
   --color-phosphor-hot: oklch(0.98 0.008 250);
 
-  --font-screen: "Px437 IBM VGA 8x16", ui-monospace, monospace;
+  --font-screen: "IBM VGA 8x16", ui-monospace, monospace;
   --font-agent: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
@@ -32,5 +45,197 @@
   ::selection {
     color: var(--color-glass);
     background-color: var(--color-phosphor);
+  }
+}
+
+/* Broadcast-monitor body (see DESIGN.md "Monitor body"). Fills the window.
+   Thicknesses live in custom properties on the casing so the rounded
+   opening can be derived from them. */
+@layer components {
+  .crt-casing {
+    --edge-y: clamp(6px, 1.2vh, 14px);
+    --edge-x: clamp(6px, 1vw, 16px);
+    --slope-top: clamp(8px, 2vh, 24px);
+    --slope-side: clamp(8px, 1.5vw, 28px);
+    --slope-bottom: clamp(6px, 1.6vh, 20px);
+    --opening: clamp(18px, 2.6vw, 44px);
+    --tube-pad: clamp(3px, 0.6vh, 7px);
+
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding: var(--edge-y) var(--edge-x) 0;
+    background: linear-gradient(
+      180deg,
+      var(--color-bezel-hi),
+      var(--color-bezel) 4%,
+      var(--color-bezel) 92%,
+      var(--color-bezel-lo)
+    );
+    box-shadow:
+      inset 0 2px 0 oklch(0.34 0.003 250),
+      inset 2px 0 0 oklch(0.25 0.003 250),
+      inset -2px 0 0 oklch(0.15 0.003 250);
+  }
+
+  /* Four facets lit from above read as a slope into the tube. The outer
+     radius is slope + opening on each axis, so the inner edge of the slope
+     comes out as a round opening of radius --opening. */
+  .crt-bevel {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background: var(--color-tube);
+    border-color: var(--color-facet-top) var(--color-facet-side)
+      var(--color-facet-bottom);
+    border-style: solid;
+    border-width: var(--slope-top) var(--slope-side) var(--slope-bottom);
+    border-radius:
+      calc(var(--slope-side) + var(--opening)) /
+      calc(var(--slope-top) + var(--opening))
+      calc(var(--slope-top) + var(--opening))
+      calc(var(--slope-bottom) + var(--opening))
+      calc(var(--slope-bottom) + var(--opening));
+  }
+
+  .crt-tube {
+    display: flex;
+    flex: 1;
+    padding: var(--tube-pad);
+    background: var(--color-tube);
+    border-radius: var(--opening);
+    box-shadow: inset 0 3px 8px oklch(0 0 0 / 0.9);
+  }
+
+  .crt-glass {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    border-radius: calc(var(--opening) - var(--tube-pad));
+  }
+
+  .crt-chin {
+    display: flex;
+    flex-shrink: 0;
+    gap: clamp(10px, 2vw, 28px);
+    align-items: center;
+    height: clamp(40px, 6.4vh, 68px);
+    padding: 0 clamp(6px, 1.4vw, 24px) clamp(2px, 0.5vh, 6px);
+  }
+
+  .crt-logo {
+    flex-shrink: 0;
+    font:
+      italic 800 clamp(12px, 1.8vh, 16px) / 1 system-ui,
+      sans-serif;
+    color: oklch(0.54 0 0);
+    letter-spacing: 0.08em;
+    text-shadow: 0 1px 0 oklch(0.1 0 0);
+  }
+
+  .crt-grille {
+    flex-shrink: 0;
+    width: clamp(80px, 10vw, 160px);
+    height: clamp(20px, 3.6vh, 38px);
+    background:
+      repeating-linear-gradient(
+        90deg,
+        oklch(0.06 0 0) 0 5px,
+        transparent 5px 10px
+      ),
+      oklch(0.16 0.003 250);
+    border-radius: 5px;
+    box-shadow:
+      inset 0 2px 4px oklch(0 0 0 / 0.8),
+      0 1px 0 oklch(0.27 0.003 250);
+  }
+
+  .crt-strip {
+    display: flex;
+    flex: 1;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-around;
+    height: clamp(26px, 4vh, 42px);
+    padding: 0 14px;
+    background: oklch(0.12 0.003 250);
+    border-radius: 5px;
+    box-shadow:
+      inset 0 2px 6px oklch(0 0 0 / 0.85),
+      0 1px 0 oklch(0.27 0.003 250);
+  }
+
+  .crt-key {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .crt-key::before {
+    width: 22px;
+    height: 12px;
+    content: "";
+    background: linear-gradient(180deg, oklch(0.31 0 0), oklch(0.18 0 0));
+    border-radius: 2px;
+    box-shadow:
+      inset 0 1px 0 oklch(0.41 0 0),
+      0 2px 2px oklch(0 0 0 / 0.6);
+  }
+
+  .crt-silk {
+    font:
+      600 12px / 1.25 system-ui,
+      sans-serif;
+    color: oklch(0.6 0 0);
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+
+  .crt-silk-on {
+    color: oklch(0.78 0 0);
+  }
+
+  .crt-rocker {
+    width: 52px;
+    height: 22px;
+    padding: 2px;
+    background: oklch(0.05 0 0);
+    border-radius: 3px;
+    box-shadow:
+      inset 0 1px 2px oklch(0 0 0),
+      0 1px 0 oklch(0.27 0.003 250);
+  }
+
+  .crt-rocker::before {
+    display: block;
+    width: 50%;
+    height: 100%;
+    content: "";
+    background: linear-gradient(180deg, oklch(0.34 0 0), oklch(0.2 0 0));
+    border-radius: 2px;
+    box-shadow: inset 0 1px 0 oklch(0.43 0 0);
+  }
+
+  .crt-led {
+    width: 6px;
+    height: 6px;
+    background: oklch(0.88 0.02 250);
+    border-radius: 50%;
+    box-shadow: 0 0 10px oklch(0.9 0.02 250 / 0.9);
+  }
+
+  .crt-power {
+    width: clamp(22px, 3.4vh, 32px);
+    aspect-ratio: 1;
+    background: radial-gradient(
+      circle at 40% 35%,
+      oklch(0.33 0 0),
+      oklch(0.16 0 0)
+    );
+    border-radius: 50%;
+    box-shadow:
+      0 2px 3px oklch(0 0 0 / 0.7),
+      inset 0 1px 0 oklch(0.43 0 0);
   }
 }

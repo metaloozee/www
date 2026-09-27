@@ -22,6 +22,17 @@ Reference: the boot loader on shader.se. Take its glass, fringing and boot scree
 - The choice is saved per visitor, with a fallback to Human.
 - Agents that never click get the same content at `/index.md` and `/llms.txt`, and on `/` when the request sends `Accept: text/markdown`.
 
+## Monitor body
+
+A charcoal broadcast monitor (JVC-style), front-on, filling the window. There's no room or desk around it: on wide 16:9 screens an object floating in a room looks odd, so the casing is the page's edge.
+
+- **Casing:** `--bezel` with a lit top edge (`--bezel-hi`) and a shaded bottom (`--bezel-lo`). Kept thin (about 1% of the window at the sides) so the glass gets most of the screen.
+- **Bezel slope:** four border facets, lighter at the top, mid at the sides, darkest at the bottom, so the bezel reads as sloping down into the tube. The outer corner radius is the slope width plus `--opening`, so the opening itself has round corners; the tube, the glass and the shader's screen mask all share that radius.
+- **Tube:** a `--tube` recess with an inner shadow around the glass.
+- **Chin:** the `AYAN` logo, speaker grille, a recessed control strip (V-HOLD, BRIGHT, CONTRAST, SHARP), the Human/Agent rocker, the power LED and a round power button.
+- **Sizing:** every thickness uses `clamp()` on the viewport, so the body keeps its proportions from a laptop up to a 16:9 display. Below `sm` the grille hides; below `md` the control keys hide and only the rocker and power stay.
+- Styles live in `globals.css` under `@layer components` (`.crt-*`).
+
 ## Screen
 
 The screen is a text-mode display: a fixed grid of character cells, like VGA text mode.
@@ -37,8 +48,10 @@ All tokens are OKLCH. P4 phosphor is slightly cool, so each step keeps a low chr
 
 | Token | Value | Use |
 |---|---|---|
-| `--bezel` | `oklch(0.10 0 0)` | Monitor housing |
-| `--bezel-edge` | `oklch(0.22 0 0)` | 1px highlight on the bezel lip |
+| `--bezel` | `oklch(0.20 0.003 250)` | Charcoal casing face (broadcast-monitor plastic) |
+| `--bezel-hi` / `--bezel-lo` | `oklch(0.29 …)` / `oklch(0.12 …)` | Lit top edge and shaded bottom edge of the casing |
+| `--facet-top` / `-side` / `-bottom` | `oklch(0.25 / 0.17 / 0.11 …)` | The bezel's slope into the tube, lit from above |
+| `--tube` | `oklch(0.05 0 0)` | Recess between the slope and the glass; also what the shader shows past the curved screen |
 | `--glass` | `oklch(0.14 0.004 250)` | Screen when unlit. Never pure black: the glass has a grey cast. |
 | `--phosphor` | `oklch(0.94 0.012 250)` | Primary text, headings, active items |
 | `--phosphor-dim` | `oklch(0.74 0.010 250)` | Body text |
@@ -63,7 +76,7 @@ A single fragment shader runs as a post-process over the canvas texture. Startin
 
 | Effect | Value | Note |
 |---|---|---|
-| Barrel curvature | `k = 0.08` | Pixels outside the curved screen show the bezel |
+| Barrel curvature | `k = 0.03` | Kept subtle on purpose (0.08 read as too much). Pixels past the curved screen show `--tube` |
 | Screen corner radius | 4% of the short side | Rounded like the reference |
 | Chromatic aberration | 0.5px at centre → 2.5px at edges | Red outward, cyan inward. This is the main signature of the effect. |
 | Bloom | radius 6px, strength 0.35 | Soft halo around lit cells |
