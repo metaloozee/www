@@ -1,20 +1,25 @@
+import type { ContributionGrid } from "@/lib/github-contributions";
 import type { ScreenDoc } from "./doc";
+
+export const GITHUB_USER = "metaloozee";
+const PROFILE_URL = `https://github.com/${GITHUB_USER}`;
 
 // Prototype content, mirroring the Paper home and projects boards.
 // Replaced by content/index.md once the markdown pipeline lands.
-export const SAMPLE_DOC: ScreenDoc = {
+export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
   blocks: [
     { kind: "prompt", text: "C:\\HOME> type about.txt" },
-    { kind: "heading", section: "ABOUT", text: "HEY THERE, I'M AYAN." },
+    {
+      file: "ABOUT.TXT",
+      kind: "heading",
+      section: "ABOUT",
+      text: "HEY THERE, I'M AYAN.",
+    },
     {
       kind: "paragraph",
       spans: [
         {
-          text: "Twenty-year-old programmer who can't stop poking at full-stack development and artificial intelligence. I started out designing graphics for e-sports teams; now I build agents, AI platforms and the web apps around them. Currently an AI Engineer Intern at ",
-        },
-        { href: "https://rankmesh.ai", text: "Rankmesh" },
-        {
-          text: ", and studying computer science at the University of Mumbai until 2027.",
+          text: "Twenty-year-old programmer who can't stop poking at full-stack development and artificial intelligence. I started out designing graphics for e-sports teams; now I build agents, AI platforms and the web apps around them. Currently an AI Engineer Intern at Rankmesh, and studying computer engineering at the University of Mumbai until 2027.",
         },
       ],
     },
@@ -41,13 +46,24 @@ export const SAMPLE_DOC: ScreenDoc = {
         },
         {
           label: "STUDYING",
-          value: [{ text: "B.Sc. Computer Science, class of 2027" }],
+          value: [{ text: "B.Tech Computer Engineering, class of 2027" }],
         },
       ],
     },
+    { kind: "prompt", text: "C:\\HOME> git log --graph --since=1.year" },
+    {
+      grid: contributions,
+      kind: "contributions",
+      link: { href: PROFILE_URL, text: "GITHUB →" },
+    },
     { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> dir projects /w" },
-    { kind: "heading", section: "PROJECTS", text: "PROJECTS" },
+    {
+      file: "PROJECTS",
+      kind: "heading",
+      section: "PROJECTS",
+      text: "PROJECTS",
+    },
     {
       body: "An agent workspace for creating or importing React apps, chatting over code changes and iterating from idea to working app.",
       index: "01",
@@ -74,7 +90,12 @@ export const SAMPLE_DOC: ScreenDoc = {
     },
     { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> type contact.txt" },
-    { kind: "heading", section: "CONTACT", text: "CONTACT" },
+    {
+      file: "CONTACT.TXT",
+      kind: "heading",
+      section: "CONTACT",
+      text: "CONTACT",
+    },
     {
       kind: "facts",
       rows: [
@@ -88,8 +109,8 @@ export const SAMPLE_DOC: ScreenDoc = {
           label: "GITHUB",
           value: [
             {
-              href: "https://github.com/metaloozee",
-              text: "github.com/metaloozee",
+              href: PROFILE_URL,
+              text: `github.com/${GITHUB_USER}`,
             },
           ],
         },
@@ -107,4 +128,4 @@ export const SAMPLE_DOC: ScreenDoc = {
   ],
   path: "C:\\HOME",
   title: "AYAN.SYS",
-};
+});

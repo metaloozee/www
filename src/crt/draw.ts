@@ -1,4 +1,12 @@
-import { type Run, runWidth, type ScreenLayout, type Tone } from "./layout";
+import {
+  DAY_PX,
+  type GraphLine,
+  lineRows,
+  type Run,
+  runWidth,
+  type ScreenLayout,
+  type Tone,
+} from "./layout";
 
 export const CELL_W = 8;
 export const CELL_H = 16;
@@ -18,6 +26,8 @@ export interface Grid {
 export interface ScreenState {
   clock: string;
   cursorOn: boolean;
+  // Index into the contribution days under the pointer.
+  day?: number;
   focus?: number;
   hover?: number;
   hoverSection?: number;
@@ -34,15 +44,20 @@ export interface Screen {
   title: string;
 }
 
-const HINTS = "↑↓ SCROLL  TAB LINKS  ENTER OPEN";
+const HINTS = "↑↓ SCROLL    TAB LINKS    ENTER OPEN";
 const SHORT_HINTS = "↑↓ SCROLL";
+const DAY_SQUARE = 6;
 
-// Row 0 is the title bar and the last row the status bar, each with a
-// blank row of glass between it and the scrolling content.
-export const CONTENT_TOP = 2;
-export const viewportRows = (grid: Grid) => Math.max(1, grid.rows - 4);
+// Row 0 is the title bar and the last row the status bar. Two blank rows
+// of glass sit under the title bar and one above the status bar.
+export const CONTENT_TOP = 3;
+export const viewportRows = (grid: Grid) =>
+  Math.max(1, grid.rows - CONTENT_TOP - 2);
 
-export const INDEX_TOP = CONTENT_TOP + 2;
+// INDEX sits level with the lower half of the 2x heading; its entries
+// line up with the first paragraph.
+const INDEX_LABEL_ROW = CONTENT_TOP + 3;
+export const INDEX_TOP = INDEX_LABEL_ROW + 2;
 
 // Section the reader is in: the last one starting at or above the top
 // visible row.
@@ -113,6 +128,34 @@ function drawRun(
   }
 }
 
+const LEVEL_TONE: Tone[] = ["ghost", "faint", "dim", "phosphor", "hot"];
+
+function drawGraph(
+  ctx: CanvasRenderingContext2D,
+  screen: Screen,
+  state: ScreenState,
+  graph: GraphLine,
+  row: number
+) {
+  const { margin } = screen.grid;
+  const inset = (DAY_PX - DAY_SQUARE) / 2;
+  for (const [i, day] of graph.grid.days.entries()) {
+    const week = day.week - graph.offset;
+    if (week < 0) {
+      continue;
+    }
+    const x = (margin + week) * CELL_W + inset;
+    const y = row * CELL_H + day.weekday * DAY_PX + inset;
+    ctx.fillStyle = screen.palette[LEVEL_TONE[day.level] ?? "ghost"];
+    ctx.fillRect(x, y, DAY_SQUARE, DAY_SQUARE);
+    if (i === state.day) {
+      ctx.strokeStyle = screen.palette.hot;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 0.5, y - 0.5, DAY_SQUARE + 1, DAY_SQUARE + 1);
+    }
+  }
+}
+
 function drawContent(
   ctx: CanvasRenderingContext2D,
   screen: Screen,
@@ -128,8 +171,11 @@ function drawContent(
   for (const [i, line] of layout.lines.entries()) {
     const row = CONTENT_TOP + (layout.rowOf[i] ?? 0) - state.scroll;
     const bottom = CONTENT_TOP + visible;
-    if (row + (line.big ? 2 : 1) <= CONTENT_TOP || row >= bottom) {
+    if (row + lineRows(line) <= CONTENT_TOP || row >= bottom) {
       continue;
+    }
+    if (line.graph) {
+      drawGraph(ctx, screen, state, line.graph, row);
     }
     for (const run of line.runs) {
       drawRun(ctx, screen, state, run, row);
@@ -157,7 +203,7 @@ function drawIndex(
   const active = activeSection(screen, state.scroll);
   setFont(ctx, 1);
   ctx.fillStyle = palette.faint;
-  textAt(ctx, screen, "INDEX", index.col + 1, CONTENT_TOP);
+  textAt(ctx, screen, "INDEX", index.col + 1, INDEX_LABEL_ROW);
   for (const [i, section] of screen.layout.sections.entries()) {
     const row = INDEX_TOP + i;
     const lit = i === active || i === state.hoverSection;
@@ -171,7 +217,7 @@ function drawIndex(
       );
     }
     ctx.fillStyle = lit ? palette.glass : palette.dim;
-    const label = `${String(i + 1).padStart(2, "0")}  ${section.label}`;
+    const label = `${String(i + 1).padStart(2, "0")} ${section.label}`;
     textAt(ctx, screen, label.slice(0, index.width - 2), index.col + 1, row);
   }
 }
@@ -187,14 +233,11 @@ function drawBars(
   ctx.fillStyle = palette.phosphor;
   ctx.fillRect(0, 0, grid.cols * CELL_W, CELL_H);
   ctx.fillStyle = palette.glass;
+  const { file } =
+    screen.layout.sections[activeSection(screen, state.scroll)] ?? {};
+  const path = file ? `${screen.path}\\${file}` : screen.path;
   textAt(ctx, screen, screen.title, 1, 0);
-  textAt(
-    ctx,
-    screen,
-    screen.path,
-    Math.floor((grid.cols - screen.path.length) / 2),
-    0
-  );
+  textAt(ctx, screen, path, Math.floor((grid.cols - path.length) / 2), 0);
   textAt(ctx, screen, state.clock, grid.cols - state.clock.length - 1, 0);
 
   const last = grid.rows - 1;

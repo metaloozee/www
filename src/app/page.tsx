@@ -1,6 +1,11 @@
 import { CrtScreen } from "@/components/crt-screen";
-import { SAMPLE_DOC } from "@/crt/sample-doc";
+import { GITHUB_USER, sampleDoc } from "@/crt/sample-doc";
+import {
+  getContributions,
+  toContributionGrid,
+} from "@/lib/github-contributions";
 
-export default function IndexPage() {
-  return <CrtScreen doc={SAMPLE_DOC} />;
+export default async function IndexPage() {
+  const grid = toContributionGrid(await getContributions(GITHUB_USER));
+  return <CrtScreen doc={sampleDoc(grid)} />;
 }

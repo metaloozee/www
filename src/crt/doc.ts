@@ -1,3 +1,5 @@
+import type { ContributionGrid } from "@/lib/github-contributions";
+
 export interface Span {
   href?: string;
   text: string;
@@ -5,11 +7,13 @@ export interface Span {
 
 export type Block =
   | { kind: "prompt"; text: string }
-  // `section` names the heading in the INDEX column.
-  | { kind: "heading"; section?: string; text: string }
+  // `section` names the heading in the INDEX column; `file` is what the
+  // title bar shows while the section is on screen.
+  | { kind: "heading"; file?: string; section?: string; text: string }
   | { kind: "paragraph"; spans: Span[] }
   | { kind: "facts"; rows: { label: string; value: Span[] }[] }
   | { kind: "entry"; index: string; title: Span; meta: string; body: string }
+  | { kind: "contributions"; grid: ContributionGrid; link: Span }
   | { kind: "rule" };
 
 export interface ScreenDoc {
@@ -31,6 +35,8 @@ export function collectLinks(doc: ScreenDoc): Span[] {
       }
     } else if (block.kind === "entry") {
       spans.push(block.title);
+    } else if (block.kind === "contributions" && block.grid.days.length > 0) {
+      spans.push(block.link);
     }
   }
   return spans.filter((span) => span.href);

@@ -1,3 +1,4 @@
+import type { ContributionGrid } from "@/lib/github-contributions";
 import { type Block, collectLinks, type ScreenDoc, type Span } from "./doc";
 
 export type Tone = "ghost" | "faint" | "dim" | "phosphor" | "hot";
@@ -10,9 +11,17 @@ export interface Run {
   tone: Tone;
 }
 
-// A big line holds 2x glyphs and takes two text rows.
+export interface GraphLine {
+  grid: ContributionGrid;
+  // Weeks cut from the left so the graph fits the measure.
+  offset: number;
+}
+
+// A big line holds 2x glyphs and takes two text rows; a graph line holds
+// the contribution squares, two days to a row.
 export interface Line {
   big: boolean;
+  graph?: GraphLine;
   runs: Run[];
 }
 
@@ -23,6 +32,7 @@ export interface ScreenLink {
 }
 
 export interface Section {
+  file?: string;
   label: string;
   // Row the section starts on: its prompt line when one leads the heading.
   row: number;
@@ -40,6 +50,19 @@ export interface ScreenLayout {
 const FACT_LABEL_WIDTH = 12;
 const ENTRY_INDEX_WIDTH = 4;
 const WORD = /(?<= )/;
+
+// Each day is 8x8 font pixels, half a cell: a week of seven fills 3.5 rows.
+export const DAY_PX = 8;
+export const DAYS_PER_ROW = 2;
+const GRAPH_ROWS = 4;
+const LEGEND: Tone[] = ["ghost", "faint", "dim", "phosphor", "hot"];
+
+export const lineRows = (line: Line) => {
+  if (line.graph) {
+    return GRAPH_ROWS;
+  }
+  return line.big ? 2 : 1;
+};
 
 type LinkIds = Map<Span, number>;
 
@@ -94,6 +117,66 @@ function wrap(
   return lines;
 }
 
+const text = (runs: Run[]): Line => ({ big: false, runs });
+
+function layoutContributions(
+  block: Extract<Block, { kind: "contributions" }>,
+  width: number,
+  ids: LinkIds
+): Line[] {
+  const { grid, link } = block;
+  if (grid.days.length === 0) {
+    return [
+      text([
+        {
+          col: 0,
+          text: "ERROR: contribution data unavailable.",
+          tone: "faint",
+        },
+      ]),
+    ];
+  }
+  const offset = Math.max(0, grid.weeks - width);
+  const months = grid.months
+    .filter((month) => month.week >= offset)
+    .map(
+      (month): Run => ({
+        col: month.week - offset,
+        text: month.label,
+        tone: "faint",
+      })
+    );
+
+  const summary = `${grid.total.toLocaleString("en")} contributions in the last year on `;
+  const footer: Run[] = [
+    { col: 0, text: summary, tone: "dim" },
+    {
+      col: summary.length,
+      link: ids.get(link),
+      text: link.text,
+      tone: "phosphor",
+    },
+  ];
+  const legendWidth = "LESS ".length + LEGEND.length + " MORE".length;
+  let col = width - legendWidth;
+  if (col >= summary.length + link.text.length + 2) {
+    footer.push({ col, text: "LESS ", tone: "faint" });
+    col += "LESS ".length;
+    for (const tone of LEGEND) {
+      footer.push({ col, text: "■", tone });
+      col += 1;
+    }
+    footer.push({ col, text: " MORE", tone: "faint" });
+  }
+
+  return [
+    text(months),
+    { big: false, graph: { grid, offset }, runs: [] },
+    text([]),
+    text(footer),
+  ];
+}
+
 function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
   switch (block.kind) {
     case "prompt":
@@ -132,6 +215,8 @@ function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
         ...wrap([{ text: block.body }], width, ENTRY_INDEX_WIDTH, "dim", ids),
       ];
     }
+    case "contributions":
+      return layoutContributions(block, width, ids);
     case "rule":
       return [
         {
@@ -144,14 +229,18 @@ function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
   }
 }
 
-// Blank rows before a block: two either side of a section rule, one
-// between blocks inside a section.
+// Blank rows before a block: two before each new command and either side
+// of a section rule, one between blocks otherwise.
 const SECTION_GAP = 2;
 function gapBefore(previous: Block | undefined, block: Block) {
   if (!previous) {
     return 0;
   }
-  return previous.kind === "rule" || block.kind === "rule" ? SECTION_GAP : 1;
+  const breaks =
+    previous.kind === "rule" ||
+    block.kind === "rule" ||
+    block.kind === "prompt";
+  return breaks ? SECTION_GAP : 1;
 }
 
 export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
@@ -174,7 +263,7 @@ export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
   let row = 0;
   for (const line of lines) {
     rowOf.push(row);
-    row += line.big ? 2 : 1;
+    row += lineRows(line);
   }
 
   const links: ScreenLink[] = linkSpans.map((span, id) => {
@@ -195,6 +284,7 @@ export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
     }
     const lead = doc.blocks[i - 1]?.kind === "prompt" ? i - 1 : i;
     sections.push({
+      file: block.file,
       label: block.section,
       row: rowOf[blockStart[lead] ?? 0] ?? 0,
     });
@@ -215,10 +305,32 @@ export function linkAtCell(
 ): number | undefined {
   const index = layout.lines.findIndex((line, i) => {
     const top = layout.rowOf[i] ?? 0;
-    return row >= top && row < top + (line.big ? 2 : 1);
+    return row >= top && row < top + lineRows(line);
   });
   const run = layout.lines[index]?.runs.find(
     (r) => r.link !== undefined && col >= r.col && col < r.col + runWidth(r)
   );
   return run?.link;
+}
+
+// Day under a document font-pixel position: `y` counts font pixels from
+// the top of the document, `col` is a cell column inside the measure.
+export function dayAt(
+  layout: ScreenLayout,
+  y: number,
+  col: number
+): { graph: GraphLine; index: number } | undefined {
+  for (const [i, line] of layout.lines.entries()) {
+    const { graph } = line;
+    if (!graph) {
+      continue;
+    }
+    const top = (layout.rowOf[i] ?? 0) * DAY_PX * DAYS_PER_ROW;
+    const weekday = Math.floor((y - top) / DAY_PX);
+    const week = col + graph.offset;
+    const index = graph.grid.days.findIndex(
+      (day) => day.week === week && day.weekday === weekday
+    );
+    return index === -1 ? undefined : { graph, index };
+  }
 }

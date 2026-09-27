@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { GitHubContributions } from "@/components/github-contributions";
 import { CrtController } from "@/crt/controller";
 import { type Block, collectLinks, type ScreenDoc, type Span } from "@/crt/doc";
 
@@ -167,6 +168,14 @@ function BlockCopy({
           <p className="text-phosphor-faint">{block.meta}</p>
           <p>{block.body}</p>
         </article>
+      );
+    case "contributions":
+      return (
+        <GitHubContributions
+          grid={block.grid}
+          linkId={ids.get(block.link)}
+          profileUrl={block.link.href ?? ""}
+        />
       );
     case "rule":
       return <hr className="border-phosphor-faint" />;

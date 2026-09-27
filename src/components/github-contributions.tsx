@@ -22,11 +22,15 @@ const LEVELS: ContributionLevel[] = [0, 1, 2, 3, 4];
 
 interface GitHubContributionsProps {
   grid: ContributionGrid;
+  // Position of the profile link in the CRT's link order, so focusing it
+  // lights the matching cells on the canvas.
+  linkId?: number;
   profileUrl: string;
 }
 
 export function GitHubContributions({
   grid,
+  linkId,
   profileUrl,
 }: GitHubContributionsProps) {
   if (grid.days.length === 0) {
@@ -100,6 +104,7 @@ export function GitHubContributions({
         <span style={{ color: "var(--color-phosphor-dim)" }}>
           {summary} on{" "}
           <a
+            data-link={linkId}
             href={profileUrl}
             rel="noopener"
             style={{ color: "var(--color-phosphor)" }}
