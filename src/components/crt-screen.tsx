@@ -7,10 +7,17 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { GitHubContributions } from "@/components/github-contributions";
 import { CrtController } from "@/crt/controller";
 import { type Block, collectLinks, type ScreenDoc, type Span } from "@/crt/doc";
+import {
+  serverSoundEnabled,
+  soundEnabled,
+  subscribeSound,
+  toggleSound,
+} from "@/crt/sound";
 
 interface CrtScreenProps {
   doc: ScreenDoc;
@@ -31,6 +38,11 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   const [live, setLive] = useState(returning ? undefined : false);
   const [powerOn] = useState(returning ?? false);
   const handOver = useEffectEvent(onAgent);
+  const soundOn = useSyncExternalStore(
+    subscribeSound,
+    soundEnabled,
+    serverSoundEnabled
+  );
   // Without a controller (no WebGL) there is no power-off to play.
   const switchToAgent = useCallback(() => {
     if (controllerRef.current) {
@@ -91,6 +103,15 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
           }
           ref={copyRef}
         >
+          <button
+            aria-pressed={soundOn}
+            className="mb-2 ml-auto block border border-phosphor-faint px-2 text-phosphor aria-pressed:bg-phosphor aria-pressed:text-glass"
+            data-sound-switch
+            onClick={toggleSound}
+            type="button"
+          >
+            Sound
+          </button>
           <button
             className="mb-6 ml-auto block border border-phosphor-faint px-2 text-phosphor"
             data-mode-switch

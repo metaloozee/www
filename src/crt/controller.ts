@@ -20,10 +20,12 @@ import {
   type Screen,
   type ScreenState,
   sectionAt,
+  soundSwitchCols,
   viewportRows,
 } from "./draw";
 import { dayAt, layoutDoc, linkAtCell } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
+import { play, soundEnabled, subscribeSound, toggleSound } from "./sound";
 
 const MEASURE = 72;
 const MIN_MEASURE = 60;
@@ -38,7 +40,13 @@ const PORTRAIT_URL = "/boot/portrait.png";
 const BOOT_MS = 1800;
 const BOOT_HOLD_MS = 400;
 const POWER_MS = 400;
+// Lets the click sound start before the new tab takes focus.
+const LINK_OPEN_DELAY_MS = 40;
+// Sweeping the pointer across several links ticks at most this often.
+const HOVER_SOUND_GAP_MS = 60;
 const AGENT_STATUS = "SWITCH TO AGENT VIEW";
+const soundStatus = () =>
+  soundEnabled() ? "SOUND ON · CLICK TO MUTE" : "SOUND OFF · CLICK TO UNMUTE";
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
@@ -130,6 +138,7 @@ export interface MountOptions {
 
 type Target =
   | { mode: "agent" }
+  | { sound: true }
   | { link: number }
   | { section: number }
   | { day: ContributionDay; index: number };
@@ -160,6 +169,7 @@ export class CrtController {
     clock: clock(),
     cursorOn: true,
     scroll: 0,
+    soundOn: soundEnabled(),
   };
   private readonly reducedMotion = matchMedia(
     "(prefers-reduced-motion: reduce)"
@@ -181,9 +191,12 @@ export class CrtController {
   private bootAt = 0;
   private bootFullAt: number | undefined;
   private bootKey = "";
+  private bootOks = 0;
   private offAt: number | undefined;
   private onAt: number | undefined;
   private readonly powerOn: boolean;
+  private powerOnPlayed = false;
+  private hoverSoundAt = 0;
   private portrait: HTMLImageElement | undefined;
   private readonly bootSteps: BootStep[] = [
     // mount() waits for the font before the controller exists.
@@ -291,8 +304,23 @@ export class CrtController {
     return { filled, step, stepOk };
   }
 
+  // Each step that reads OK ticks; the full bar beeps instead.
+  private bootSounds(frame: BootFrame) {
+    const steps = this.bootSteps;
+    const oks = steps.filter(
+      (step, i) =>
+        step.done && frame.filled >= ((i + 1) * BOOT_CELLS) / steps.length
+    ).length;
+    if (oks <= this.bootOks) {
+      return;
+    }
+    this.bootOks = oks;
+    play(frame.filled === BOOT_CELLS ? "beep" : "step");
+  }
+
   private updateBoot(now: number, motion: boolean) {
     const frame = this.bootFrame(now, motion);
+    this.bootSounds(frame);
     if (frame.filled === BOOT_CELLS) {
       this.bootFullAt ??= now;
       if (now - this.bootFullAt >= BOOT_HOLD_MS) {
@@ -314,6 +342,7 @@ export class CrtController {
     if (this.offAt !== undefined) {
       return;
     }
+    play("powerOff");
     if (this.reducedMotion.matches) {
       this.onAgent();
       return;
@@ -348,6 +377,15 @@ export class CrtController {
     this.bindPointer();
     this.bindKeys();
     this.bindFocus();
+    this.teardown.push(
+      subscribeSound(() => {
+        this.state.soundOn = soundEnabled();
+        if (this.state.soundHover) {
+          this.state.status = soundStatus();
+        }
+        this.dirty = true;
+      })
+    );
     const observer = new ResizeObserver(() => this.resize());
     observer.observe(this.glass);
     this.teardown.push(() => observer.disconnect());
@@ -436,6 +474,10 @@ export class CrtController {
     if (row === 0 && col >= toggle.start && col < toggle.end) {
       return { mode: "agent" };
     }
+    const mute = soundSwitchCols(grid, this.state.clock);
+    if (row === 0 && col >= mute.start && col < mute.end) {
+      return { sound: true };
+    }
     const section = sectionAt(this.screen, row, col);
     if (section !== undefined) {
       return { section };
@@ -464,6 +506,9 @@ export class CrtController {
     if ("mode" in target) {
       return AGENT_STATUS;
     }
+    if ("sound" in target) {
+      return soundStatus();
+    }
     if ("link" in target) {
       return this.screen.layout.links[target.link]?.href;
     }
@@ -479,12 +524,14 @@ export class CrtController {
     const section = target && "section" in target ? target.section : undefined;
     const day = target && "day" in target ? target.index : undefined;
     const mode = target !== undefined && "mode" in target;
+    const sound = target !== undefined && "sound" in target;
     const { state } = this;
     if (
       link === state.hover &&
       section === state.hoverSection &&
       day === state.day &&
-      mode === Boolean(state.modeHover)
+      mode === Boolean(state.modeHover) &&
+      sound === Boolean(state.soundHover)
     ) {
       return;
     }
@@ -492,10 +539,18 @@ export class CrtController {
     state.hoverSection = section;
     state.day = day;
     state.modeHover = mode;
+    state.soundHover = sound;
     state.status = this.statusFor(target);
-    const clickable = link !== undefined || section !== undefined || mode;
+    const clickable =
+      link !== undefined || section !== undefined || mode || sound;
     this.canvas.style.cursor = clickable ? "pointer" : "default";
     this.dirty = true;
+    // Only the pointer reaches here; keyboard focus stays silent.
+    const now = performance.now();
+    if (clickable && now - this.hoverSoundAt >= HOVER_SOUND_GAP_MS) {
+      this.hoverSoundAt = now;
+      play("hover");
+    }
   }
 
   private activate(target?: Target) {
@@ -506,13 +561,21 @@ export class CrtController {
       this.powerOff();
       return;
     }
+    if ("sound" in target) {
+      toggleSound();
+      return;
+    }
+    play("tick");
     if ("section" in target) {
       this.scrollTo(this.screen.layout.sections[target.section]?.row ?? 0);
       return;
     }
     const href = this.screen.layout.links[target.link]?.href;
     if (href) {
-      window.open(href, "_blank", "noopener,noreferrer");
+      setTimeout(
+        () => window.open(href, "_blank", "noopener,noreferrer"),
+        LINK_OPEN_DELAY_MS
+      );
     }
   }
 
@@ -566,13 +629,18 @@ export class CrtController {
     // gets focus on the way back from agent mode, before this controller
     // exists.
     const focusSwitch = (target: EventTarget | null) => {
-      const on =
-        target instanceof HTMLElement &&
-        target.dataset.modeSwitch !== undefined;
-      this.state.modeHover = on;
-      this.state.status = on ? AGENT_STATUS : undefined;
+      const data = target instanceof HTMLElement ? target.dataset : undefined;
+      const mode = data?.modeSwitch !== undefined;
+      const sound = data?.soundSwitch !== undefined;
+      this.state.modeHover = mode;
+      this.state.soundHover = sound;
+      if (mode) {
+        this.state.status = AGENT_STATUS;
+      } else {
+        this.state.status = sound ? soundStatus() : undefined;
+      }
       this.dirty = true;
-      return on;
+      return mode || sound;
     };
     focusSwitch(document.activeElement);
     this.listen(this.copy, "focusin", (event) => {
@@ -580,8 +648,15 @@ export class CrtController {
         this.focusLink(linkId(event.target));
       }
     });
+    // Links in the copy open by keyboard, so they click here too.
+    this.listen(this.copy, "click", (event) => {
+      if (event.target instanceof Element && event.target.closest("a")) {
+        play("tick");
+      }
+    });
     this.listen(this.copy, "focusout", () => {
       this.state.modeHover = false;
+      this.state.soundHover = false;
       this.focusLink(undefined);
     });
   }
@@ -664,6 +739,12 @@ export class CrtController {
       this.updateFps(now);
     }
 
+    // On the first frame rather than in start(): a controller disposed
+    // straight after mounting never gets here.
+    if (this.powerOn && !this.powerOnPlayed) {
+      this.powerOnPlayed = true;
+      play("powerOn");
+    }
     const off = this.powerLevel(now);
     const boot = this.booting ? this.updateBoot(now, motion) : undefined;
     const redraw = this.takeDirty();

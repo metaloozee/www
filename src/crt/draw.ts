@@ -34,6 +34,8 @@ export interface ScreenState {
   // Pointer or keyboard focus on the HUMAN/AGENT switch.
   modeHover?: boolean;
   scroll: number;
+  soundHover?: boolean;
+  soundOn: boolean;
   status?: string;
 }
 
@@ -235,6 +237,65 @@ export function modeSwitchCols(grid: Grid, clock: string) {
   return { end, start: end - MODE_SWITCH_WIDTH };
 }
 
+// Speaker icon one cell left of the mode switch: sound waves while on, an
+// X while muted. Drawn pixel by pixel so it stays as crisp as the font.
+const SOUND_CELLS = 3;
+const SPEAKER_ON = [
+  ".....#...#..",
+  "....##....#.",
+  "...###.#...#",
+  "######..#..#",
+  "######..#..#",
+  "######..#..#",
+  "######..#..#",
+  "...###.#...#",
+  "....##....#.",
+  ".....#...#..",
+];
+const SPEAKER_OFF = [
+  ".....#......",
+  "....##......",
+  "...###......",
+  "######.#...#",
+  "######..#.#.",
+  "######...#..",
+  "######..#.#.",
+  "...###.#...#",
+  "....##......",
+  ".....#......",
+];
+
+export function soundSwitchCols(grid: Grid, clock: string) {
+  const end = modeSwitchCols(grid, clock).start - 1;
+  return { end, start: end - SOUND_CELLS };
+}
+
+function drawSoundSwitch(
+  ctx: CanvasRenderingContext2D,
+  screen: Screen,
+  state: ScreenState
+) {
+  const { start } = soundSwitchCols(screen.grid, state.clock);
+  const x = start * CELL_W;
+  const w = SOUND_CELLS * CELL_W;
+  ctx.fillStyle = screen.palette.glass;
+  if (state.soundHover) {
+    ctx.strokeStyle = screen.palette.glass;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, 0.5, w - 1, CELL_H - 1);
+  }
+  const icon = state.soundOn ? SPEAKER_ON : SPEAKER_OFF;
+  const left = x + Math.floor((w - (icon[0]?.length ?? 0)) / 2);
+  const top = Math.floor((CELL_H - icon.length) / 2);
+  for (const [row, line] of icon.entries()) {
+    for (const [col, pixel] of [...line].entries()) {
+      if (pixel === "#") {
+        ctx.fillRect(left + col, top + row, 1, 1);
+      }
+    }
+  }
+}
+
 function drawModeSwitch(
   ctx: CanvasRenderingContext2D,
   screen: Screen,
@@ -275,6 +336,7 @@ function drawBars(
   textAt(ctx, screen, screen.title, 1, 0);
   textAt(ctx, screen, state.clock, grid.cols - state.clock.length - 1, 0);
   drawModeSwitch(ctx, screen, state);
+  drawSoundSwitch(ctx, screen, state);
 
   const last = grid.rows - 1;
   const pad = (n: number) => String(n).padStart(3, "0");

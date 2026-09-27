@@ -1,10 +1,11 @@
 "use client";
 
 import { parseAsStringLiteral, useQueryState } from "nuqs";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AgentView } from "@/components/agent-view";
 import { CrtScreen } from "@/components/crt-screen";
 import type { ScreenDoc } from "@/crt/doc";
+import { armSound } from "@/crt/sound";
 
 // ?view=agent. Human is the default and keeps the URL clean. Switching
 // replaces the entry, so Back leaves the site instead of flipping modes.
@@ -20,6 +21,7 @@ export function SiteView({
   markdown: string;
 }) {
   const [view, setView] = useQueryState("view", viewParser);
+  useEffect(armSound, []);
   // A view that differs from the one the page loaded with was switched to,
   // so it takes focus and the CRT powers on rather than cold-booting.
   const [shown, setShown] = useState(view);
