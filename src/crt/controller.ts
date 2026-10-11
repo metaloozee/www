@@ -37,6 +37,9 @@ import {
 const MEASURE = 72;
 const MIN_MEASURE = 60;
 const WIDE_SCREEN = 640;
+// A phone on its side is wide but short: larger cells would leave it a
+// handful of rows.
+const TALL_SCREEN = 480;
 const LARGE_SCREEN = 1920;
 const BLINK_MS = 530;
 const INDEX_WIDTH = 28;
@@ -105,15 +108,15 @@ const isTyping = (target: EventTarget | null) =>
 // crisp. The grid spans the glass less an edge kept clear of the curve;
 // wide grids keep the INDEX column flush right and widen the prose to
 // meet it.
-function cellScale(width: number) {
+function cellScale(width: number, height: number) {
   if (width >= LARGE_SCREEN) {
     return 2;
   }
-  return width >= WIDE_SCREEN ? 1.5 : 1;
+  return width >= WIDE_SCREEN && height >= TALL_SCREEN ? 1.5 : 1;
 }
 
 function fitGrid(width: number, height: number) {
-  const scale = cellScale(width);
+  const scale = cellScale(width, height);
   const cellW = CELL_W * scale;
   const cellH = CELL_H * scale;
   const edgeCols = scale > 1 ? 5 : 3;
@@ -121,7 +124,7 @@ function fitGrid(width: number, height: number) {
   const cols = Math.max(1, Math.floor(width / cellW) - 2 * edgeCols);
   const rows = Math.max(1, Math.floor((height - 2 * edgeY) / cellH));
   const indexMeasure = cols - INDEX_GAP - INDEX_WIDTH;
-  const measure = Math.max(1, Math.min(MEASURE, cols - 2));
+  const measure = Math.max(1, Math.min(MEASURE, cols));
   const grid: Grid =
     indexMeasure >= MIN_MEASURE
       ? {
@@ -507,7 +510,8 @@ export class CrtController {
     const rect = this.glass.getBoundingClientRect();
     const [u, v] = barrel(
       (clientX - rect.left) / rect.width,
-      (clientY - rect.top) / rect.height
+      (clientY - rect.top) / rect.height,
+      rect.width / rect.height
     );
     return {
       x: (u * rect.width - this.box.x) / this.scale,

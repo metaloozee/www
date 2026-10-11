@@ -158,32 +158,26 @@ function layoutContributions(
     );
 
   const summary = `${grid.total.toLocaleString("en")} contributions in the last year on `;
-  const footer: Run[] = [
-    { col: 0, text: summary, tone: "dim" },
-    {
-      col: summary.length,
-      link: ids.get(link),
-      text: link.text,
-      tone: "phosphor",
-    },
-  ];
+  const footer = wrap([{ text: summary }, link], width, 0, "dim", ids);
+  // The legend shares the summary's row, so it goes when that row wraps.
+  const row = footer.length === 1 ? footer[0] : undefined;
   const legendWidth = "LESS ".length + LEGEND.length + " MORE".length;
   let col = width - legendWidth;
-  if (col >= summary.length + link.text.length + 2) {
-    footer.push({ col, text: "LESS ", tone: "faint" });
+  if (row && col >= summary.length + link.text.length + 2) {
+    row.runs.push({ col, text: "LESS ", tone: "faint" });
     col += "LESS ".length;
     for (const tone of LEGEND) {
-      footer.push({ col, text: "■", tone });
+      row.runs.push({ col, text: "■", tone });
       col += 1;
     }
-    footer.push({ col, text: " MORE", tone: "faint" });
+    row.runs.push({ col, text: " MORE", tone: "faint" });
   }
 
   return [
     text(months),
     { big: false, graph: { grid, offset }, runs: [] },
     text([]),
-    text(footer),
+    ...footer,
   ];
 }
 

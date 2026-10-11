@@ -1,12 +1,19 @@
 // Barrel curvature, shared by the fragment shader and pointer hit-testing.
 // Dividing by (1 + K) keeps the edge midpoints fixed and pulls the centre in.
+// On portrait glass the width counts for less (`aspect` is width / height),
+// so a phone's short rows bow as little as a desktop's long ones instead of
+// tilting.
 export const CURVATURE = 0.05;
 
-export function barrel(u: number, v: number): [number, number] {
+export function barrel(u: number, v: number, aspect: number): [number, number] {
   const x = u * 2 - 1;
   const y = v * 2 - 1;
-  const f = (1 + CURVATURE * (x * x + y * y)) / (1 + CURVATURE);
-  return [(x * f + 1) / 2, (y * f + 1) / 2];
+  const ax = Math.min(1, aspect) ** 2;
+  const f = 1 + CURVATURE * (ax * x * x + y * y);
+  return [
+    ((x * f) / (1 + CURVATURE * ax) + 1) / 2,
+    ((y * f) / (1 + CURVATURE) + 1) / 2,
+  ];
 }
 
 const VERTEX = `#version 300 es
@@ -39,7 +46,9 @@ const float K = ${CURVATURE.toFixed(4)};
 
 vec2 barrel(vec2 uv) {
   vec2 c = uv * 2.0 - 1.0;
-  c *= (1.0 + K * dot(c, c)) / (1.0 + K);
+  float ax = min(1.0, uScreen.x / uScreen.y);
+  ax *= ax;
+  c *= (1.0 + K * (ax * c.x * c.x + c.y * c.y)) / (1.0 + K * vec2(ax, 1.0));
   return c * 0.5 + 0.5;
 }
 
