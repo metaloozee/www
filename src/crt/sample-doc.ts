@@ -22,7 +22,7 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
       kind: "paragraph",
       spans: [
         {
-          text: "Twenty-year-old programmer who can't stop poking at full-stack development and artificial intelligence. I started out designing graphics for e-sports teams; now I build agents, AI platforms and the web apps around them. Currently an AI Engineer Intern at Rankmesh, and studying computer engineering at the University of Mumbai until 2027.",
+          text: "Twenty-year-old programmer who can't stop poking at full-stack development and artificial intelligence. I started out designing graphics for e-sports teams; now I build agents, AI platforms and the web apps around them. Currently an AI Engineer Intern at RankMesh, and studying computer engineering at the University of Mumbai until 2027.",
         },
       ],
     },
@@ -43,13 +43,13 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
           value: [
             {
               href: "https://rankmesh.ai",
-              text: "AI Engineer Intern @ Rankmesh",
+              text: "AI Engineer Intern @ RankMesh",
             },
           ],
         },
         {
           label: "STUDYING",
-          value: [{ text: "B.Tech Computer Engineering, class of 2027" }],
+          value: [{ text: "B.E. Computer Engineering, class of 2027" }],
         },
       ],
     },
