@@ -29,6 +29,8 @@ export interface ScreenState {
   // Index into the contribution days under the pointer.
   day?: number;
   focus?: number;
+  // The game has the whole screen: the page and INDEX are not drawn.
+  full?: boolean;
   hover?: number;
   hoverSection?: number;
   // Pointer or keyboard focus on the HUMAN/AGENT switch.
@@ -49,6 +51,7 @@ export interface Screen {
 
 const HINTS = "↑↓ SCROLL    TAB LINKS    ENTER OPEN";
 const SHORT_HINTS = "↑↓ SCROLL";
+const FULL_HINTS = "G PLAY    F EXIT FULL SCREEN";
 const DAY_SQUARE = 6;
 
 // Row 0 is the title bar and the last row the status bar. Two blank rows
@@ -107,7 +110,7 @@ export function sectionAt(screen: Screen, row: number, col: number) {
 export const maxScroll = (screen: Screen) =>
   Math.max(0, screen.layout.totalRows + 1 - viewportRows(screen.grid));
 
-const setFont = (ctx: CanvasRenderingContext2D, size: number) => {
+export const setFont = (ctx: CanvasRenderingContext2D, size: number) => {
   ctx.font = `${CELL_H * size}px "${FONT_FAMILY}"`;
 };
 
@@ -363,9 +366,13 @@ function drawBars(
 
   const last = grid.rows - 1;
   const pad = (n: number) => String(n).padStart(3, "0");
-  const position = `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
+  // In full screen the page is hidden, so its position and keys are too.
+  const position = state.full
+    ? ""
+    : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
   const room = grid.cols - position.length - 3;
-  const hints = HINTS.length <= room ? HINTS : SHORT_HINTS;
+  const pageHints = HINTS.length <= room ? HINTS : SHORT_HINTS;
+  const hints = state.full ? FULL_HINTS : pageHints;
   ctx.fillStyle = palette.faint;
   textAt(ctx, screen, (state.status ?? hints).slice(0, room), 1, last);
   textAt(ctx, screen, position, grid.cols - position.length - 1, last);
@@ -379,7 +386,9 @@ export function drawScreen(
   ctx.fillStyle = screen.palette.glass;
   ctx.fillRect(0, 0, screen.grid.cols * CELL_W, screen.grid.rows * CELL_H);
   ctx.textBaseline = "alphabetic";
-  drawContent(ctx, screen, state);
-  drawIndex(ctx, screen, state);
+  if (!state.full) {
+    drawContent(ctx, screen, state);
+    drawIndex(ctx, screen, state);
+  }
   drawBars(ctx, screen, state);
 }
