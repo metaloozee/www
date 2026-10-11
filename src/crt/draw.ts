@@ -126,7 +126,9 @@ function drawRun(
     x,
     y + screen.ascent * size
   );
-  if (isLink && !active) {
+  // Only real links are underlined; a role toggle is not one.
+  const toggle = isLink && screen.layout.links[run.link ?? -1]?.toggle;
+  if (isLink && !(active || toggle)) {
     ctx.fillRect(x, y + (CELL_H - 2) * size, w, size);
   }
 }

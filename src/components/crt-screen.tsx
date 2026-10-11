@@ -11,7 +11,13 @@ import {
 } from "react";
 import { GitHubContributions } from "@/components/github-contributions";
 import { CrtController } from "@/crt/controller";
-import { type Block, collectLinks, type ScreenDoc, type Span } from "@/crt/doc";
+import {
+  type Block,
+  collectLinks,
+  type OpenRoles,
+  type ScreenDoc,
+  type Span,
+} from "@/crt/doc";
 import {
   serverSoundEnabled,
   soundEnabled,
@@ -38,6 +44,16 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   const [live, setLive] = useState(returning ? undefined : false);
   const [powerOn] = useState(returning ?? false);
   const handOver = useEffectEvent(onAgent);
+  const [open, setOpen] = useState<OpenRoles>(new Set());
+  const toggleRole = useCallback((block: number) => {
+    setOpen((current) => {
+      const next = new Set(current);
+      if (!next.delete(block)) {
+        next.add(block);
+      }
+      return next;
+    });
+  }, []);
   const soundOn = useSyncExternalStore(
     subscribeSound,
     soundEnabled,
@@ -68,6 +84,7 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
     let disposed = false;
     CrtController.mount(glass, canvas, copy, doc, {
       onAgent: () => handOver(),
+      onToggle: toggleRole,
       powerOn,
     })
       .then((controller) => {
@@ -84,7 +101,15 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
       controllerRef.current?.dispose();
       controllerRef.current = null;
     };
-  }, [doc, powerOn]);
+  }, [doc, powerOn, toggleRole]);
+
+  // `live` is here so a controller that mounts late still gets the roles
+  // opened while the HTML copy was showing.
+  useEffect(() => {
+    if (live) {
+      controllerRef.current?.setOpen(open);
+    }
+  }, [live, open]);
 
   return (
     <main className="crt-casing">
@@ -121,7 +146,7 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
           >
             Switch to agent view
           </button>
-          <DocCopy doc={doc} />
+          <DocCopy doc={doc} onToggle={toggleRole} open={open} />
         </div>
       </div>
     </main>
@@ -155,14 +180,69 @@ function Spans({ ids, spans }: { ids: LinkIds; spans: Span[] }) {
   ));
 }
 
+function RoleCopy({
+  block,
+  ids,
+  index,
+  onToggle,
+  open,
+}: {
+  block: Extract<Block, { kind: "role" }>;
+  ids: LinkIds;
+  index: number;
+  onToggle: (block: number) => void;
+  open: boolean;
+}) {
+  const detailsId = `role-${index}`;
+  const toggle = useCallback(() => onToggle(index), [index, onToggle]);
+  return (
+    <article>
+      <h3>
+        <button
+          aria-controls={detailsId}
+          aria-expanded={open}
+          className="text-left text-phosphor"
+          data-link={ids.get(block.title)}
+          onClick={toggle}
+          type="button"
+        >
+          <span aria-hidden="true">{open ? "[-] " : "[+] "}</span>
+          {block.title.text}
+        </button>
+      </h3>
+      <p className="text-phosphor-faint">
+        {block.dates} · {block.place}
+      </p>
+      <div hidden={!open} id={detailsId}>
+        {block.lead ? (
+          <p>
+            <Spans ids={ids} spans={block.lead} />
+          </p>
+        ) : null}
+        <ul className="list-inside list-['-_']">
+          {block.bullets.map((bullet) => (
+            <li key={bullet}>{bullet}</li>
+          ))}
+        </ul>
+      </div>
+    </article>
+  );
+}
+
 function BlockCopy({
   block,
   ids,
+  index,
   isFirstHeading,
+  onToggle,
+  open,
 }: {
   block: Block;
   ids: LinkIds;
+  index: number;
   isFirstHeading: boolean;
+  onToggle: (block: number) => void;
+  open: OpenRoles;
 }) {
   switch (block.kind) {
     case "prompt":
@@ -204,6 +284,16 @@ function BlockCopy({
           <p>{block.body}</p>
         </article>
       );
+    case "role":
+      return (
+        <RoleCopy
+          block={block}
+          ids={ids}
+          index={index}
+          onToggle={onToggle}
+          open={open.has(index)}
+        />
+      );
     case "contributions":
       return (
         <GitHubContributions
@@ -221,7 +311,15 @@ function BlockCopy({
 
 // Real HTML for screen readers, find-in-page, keyboard focus and the
 // no-WebGL fallback.
-function DocCopy({ doc }: { doc: ScreenDoc }) {
+function DocCopy({
+  doc,
+  onToggle,
+  open,
+}: {
+  doc: ScreenDoc;
+  onToggle: (block: number) => void;
+  open: OpenRoles;
+}) {
   const ids = useMemo<LinkIds>(
     () => new Map(collectLinks(doc).map((span, i) => [span, i])),
     [doc]
@@ -233,8 +331,11 @@ function DocCopy({ doc }: { doc: ScreenDoc }) {
         <BlockCopy
           block={block}
           ids={ids}
+          index={i}
           isFirstHeading={i === firstHeading}
           key={`${block.kind}-${i}`}
+          onToggle={onToggle}
+          open={open}
         />
       ))}
     </div>

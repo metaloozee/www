@@ -6,7 +6,7 @@ import {
   drawBoot,
   stepLine,
 } from "./boot";
-import type { ScreenDoc } from "./doc";
+import type { OpenRoles, ScreenDoc } from "./doc";
 import {
   CELL_H,
   CELL_W,
@@ -23,7 +23,7 @@ import {
   soundSwitchCols,
   viewportRows,
 } from "./draw";
-import { dayAt, layoutDoc, linkAtCell } from "./layout";
+import { dayAt, layoutDoc, linkAtCell, type ScreenLink } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
 import {
   play,
@@ -55,6 +55,12 @@ const KEY_PROMPT = "PRESS ANY KEY TO CONTINUE";
 const TAP_PROMPT = "TAP TO CONTINUE";
 const soundStatus = () =>
   soundEnabled() ? "SOUND ON · CLICK TO MUTE" : "SOUND OFF · CLICK TO UNMUTE";
+const linkStatus = (link?: ScreenLink) => {
+  if (link?.toggle) {
+    return link.toggle.open ? "COLLAPSE ROLE" : "EXPAND ROLE";
+  }
+  return link?.href;
+};
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
@@ -139,6 +145,9 @@ function fitGrid(width: number, height: number) {
 
 export interface MountOptions {
   onAgent: () => void;
+  // A role title was clicked on the glass; the owner flips it and calls
+  // setOpen.
+  onToggle: (block: number) => void;
   // Play the power-on (dot, line, picture) before the boot screen, for a
   // return from agent mode.
   powerOn: boolean;
@@ -168,6 +177,8 @@ export class CrtController {
   private readonly canvas: HTMLCanvasElement;
   private readonly doc: ScreenDoc;
   private readonly onAgent: () => void;
+  private readonly onToggle: (block: number) => void;
+  private open: OpenRoles = new Set();
   private readonly renderer: CrtRenderer;
   private readonly text: HTMLCanvasElement;
   private readonly copy: HTMLElement;
@@ -220,10 +231,11 @@ export class CrtController {
     gl: WebGL2RenderingContext,
     ctx: CanvasRenderingContext2D,
     doc: ScreenDoc,
-    { onAgent, powerOn }: MountOptions
+    { onAgent, onToggle, powerOn }: MountOptions
   ) {
     this.glass = glass;
     this.onAgent = onAgent;
+    this.onToggle = onToggle;
     this.powerOn = powerOn;
     this.canvas = canvas;
     this.copy = copy;
@@ -378,6 +390,18 @@ export class CrtController {
     this.offAt = performance.now();
   }
 
+  setOpen(open: OpenRoles) {
+    this.open = open;
+    const { grid } = this.screen;
+    this.screen.layout = layoutDoc(this.doc, grid.measure, open);
+    const lit = this.state.focus ?? this.state.hover;
+    if (lit !== undefined) {
+      this.state.status = linkStatus(this.screen.layout.links[lit]);
+    }
+    this.scrollTo(this.state.scroll);
+    this.dirty = true;
+  }
+
   dispose() {
     cancelAnimationFrame(this.frameId);
     for (const undo of this.teardown) {
@@ -389,7 +413,7 @@ export class CrtController {
     this.endBoot();
     const link = id === undefined ? undefined : this.screen.layout.links[id];
     this.state.focus = id;
-    this.state.status = link?.href;
+    this.state.status = linkStatus(link);
     if (link) {
       const visible = viewportRows(this.screen.grid);
       if (link.row < this.state.scroll) {
@@ -453,7 +477,7 @@ export class CrtController {
     this.box = box;
     this.scale = scale;
     this.screen.grid = grid;
-    this.screen.layout = layoutDoc(this.doc, grid.measure);
+    this.screen.layout = layoutDoc(this.doc, grid.measure, this.open);
     this.text.width = grid.cols * CELL_W;
     this.text.height = grid.rows * CELL_H;
     this.scrollTo(this.state.scroll);
@@ -538,7 +562,7 @@ export class CrtController {
       return soundStatus();
     }
     if ("link" in target) {
-      return this.screen.layout.links[target.link]?.href;
+      return linkStatus(this.screen.layout.links[target.link]);
     }
     if ("section" in target) {
       const { label } = this.screen.layout.sections[target.section] ?? {};
@@ -598,7 +622,12 @@ export class CrtController {
       this.scrollTo(this.screen.layout.sections[target.section]?.row ?? 0);
       return;
     }
-    const href = this.screen.layout.links[target.link]?.href;
+    const link = this.screen.layout.links[target.link];
+    if (link?.toggle) {
+      this.onToggle(link.toggle.block);
+      return;
+    }
+    const href = link?.href;
     if (href) {
       setTimeout(
         () => window.open(href, "_blank", "noopener,noreferrer"),
@@ -676,9 +705,13 @@ export class CrtController {
         this.focusLink(linkId(event.target));
       }
     });
-    // Links in the copy open by keyboard, so they click here too.
+    // Links and role toggles in the copy work by keyboard, so they click
+    // here too.
     this.listen(this.copy, "click", (event) => {
-      if (event.target instanceof Element && event.target.closest("a")) {
+      if (
+        event.target instanceof Element &&
+        event.target.closest("a, [data-link]")
+      ) {
         play("tick");
       }
     });

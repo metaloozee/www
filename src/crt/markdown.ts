@@ -45,6 +45,13 @@ function blockMarkdown(block: Block): string | undefined {
         .join("\n");
     case "entry":
       return wrap(`${inline([block.title])}: ${block.body}`, "- ", "  ");
+    case "role":
+      // Agent mode has nothing to collapse: every role is written out.
+      return [
+        `### ${block.title.text}\n${block.dates} · ${block.place}`,
+        ...(block.lead ? [wrap(inline(block.lead), "")] : []),
+        block.bullets.map((bullet) => wrap(bullet, "- ", "  ")).join("\n"),
+      ].join("\n\n");
     case "contributions": {
       const { grid, link } = block;
       if (grid.days.length === 0) {

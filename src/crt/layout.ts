@@ -1,5 +1,11 @@
 import type { ContributionGrid } from "@/lib/github-contributions";
-import { type Block, collectLinks, type ScreenDoc, type Span } from "./doc";
+import {
+  type Block,
+  collectLinks,
+  type OpenRoles,
+  type ScreenDoc,
+  type Span,
+} from "./doc";
 
 export type Tone = "ghost" | "faint" | "dim" | "phosphor" | "hot";
 
@@ -29,6 +35,8 @@ export interface ScreenLink {
   href: string;
   label: string;
   row: number;
+  // Set on a role title: activating it opens or closes that block.
+  toggle?: { block: number; open: boolean };
 }
 
 export interface Section {
@@ -48,6 +56,9 @@ export interface ScreenLayout {
 
 const FACT_LABEL_WIDTH = 12;
 const ENTRY_INDEX_WIDTH = 4;
+const BULLET = "- ";
+// The VGA font is CP437, which has no en dash.
+const screenCase = (value: string) => value.toUpperCase().replaceAll("–", "-");
 const WORD = /(?<= )/;
 
 // Each day is 8x8 font pixels, half a cell: a week of seven fills 3.5 rows.
@@ -176,6 +187,61 @@ function layoutContributions(
   ];
 }
 
+function layoutRole(
+  block: Extract<Block, { kind: "role" }>,
+  width: number,
+  ids: LinkIds,
+  open: boolean
+): Line[] {
+  const indent = ENTRY_INDEX_WIDTH;
+  const marker = open ? "[-] " : "[+] ";
+  const title: Span = { ...block.title, text: screenCase(block.title.text) };
+  const link = ids.get(block.title);
+  const lines = wrap(
+    [title],
+    width,
+    indent,
+    "phosphor",
+    new Map([[title, link ?? 0]]),
+    [{ col: 0, link, text: marker, tone: "phosphor" }]
+  );
+
+  // Dates sit right of a one-line title; on narrow glass they lead the
+  // place line instead.
+  const dates = screenCase(block.dates);
+  const place = screenCase(block.place);
+  const first = lines.at(0);
+  const head = first?.runs.at(-1);
+  const fits =
+    lines.length === 1 &&
+    head !== undefined &&
+    head.col + head.text.length + 2 + dates.length <= width;
+  if (fits) {
+    first?.runs.push({
+      col: width - dates.length,
+      text: dates,
+      tone: "faint",
+    });
+  }
+  const meta = fits ? place : `${dates} · ${place}`;
+  lines.push(...wrap([{ text: meta }], width, indent, "faint", ids));
+  if (!open) {
+    return lines;
+  }
+
+  if (block.lead) {
+    lines.push(...wrap(block.lead, width, indent, "dim", ids));
+  }
+  for (const bullet of block.bullets) {
+    lines.push(
+      ...wrap([{ text: bullet }], width, indent + BULLET.length, "dim", ids, [
+        { col: indent, text: BULLET, tone: "faint" },
+      ])
+    );
+  }
+  return lines;
+}
+
 function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
   switch (block.kind) {
     case "prompt":
@@ -242,19 +308,31 @@ function gapBefore(previous: Block | undefined, block: Block) {
   return breaks ? SECTION_GAP : 1;
 }
 
-export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
+const NONE_OPEN: OpenRoles = new Set();
+
+export function layoutDoc(
+  doc: ScreenDoc,
+  width: number,
+  open: OpenRoles = NONE_OPEN
+): ScreenLayout {
   const linkSpans = collectLinks(doc);
   const ids: LinkIds = new Map(linkSpans.map((span, i) => [span, i]));
 
   const lines: Line[] = [];
   const blockStart: number[] = [];
   let previous: Block | undefined;
-  for (const block of doc.blocks) {
+  const toggles = new Map<Span, { block: number; open: boolean }>();
+  for (const [i, block] of doc.blocks.entries()) {
     for (let gap = gapBefore(previous, block); gap > 0; gap -= 1) {
       lines.push({ big: false, runs: [] });
     }
     blockStart.push(lines.length);
-    lines.push(...layoutBlock(block, width, ids));
+    if (block.kind === "role") {
+      toggles.set(block.title, { block: i, open: open.has(i) });
+      lines.push(...layoutRole(block, width, ids, open.has(i)));
+    } else {
+      lines.push(...layoutBlock(block, width, ids));
+    }
     previous = block;
   }
 
@@ -273,6 +351,7 @@ export function layoutDoc(doc: ScreenDoc, width: number): ScreenLayout {
       href: span.href ?? "",
       label: span.text,
       row: rowOf[lineIndex] ?? 0,
+      toggle: toggles.get(span),
     };
   });
 

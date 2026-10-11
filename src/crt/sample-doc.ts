@@ -91,6 +91,50 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
       title: { href: "https://quickvid.vercel.app", text: "QUICKVID" },
     },
     { kind: "rule" },
+    { kind: "prompt", text: "C:\\HOME> type experience.log" },
+    {
+      kind: "heading",
+      section: "EXPERIENCE",
+      text: "EXPERIENCE",
+    },
+    {
+      bullets: [
+        "Shipped across the FastAPI multi-service backend: auth, ingestion and RAG routing, SEO and marketing workflows, scheduling, credits and billing.",
+        "Built and hardened Celery/Redis autonomous execution with Claude and Codex runners, capacity leases and manager pause/resume/cancel.",
+        "Owned large slices of the Next.js panel rewrite: client and manager workspaces, Meshy project chat over SSE, and the performance work for data-heavy polls.",
+        "Wired Search Console, Analytics, Firecrawl, CMS and GitHub publish gates, R2 storage and review-first content release.",
+      ],
+      dates: "May 2026 – now",
+      kind: "role",
+      lead: [
+        { href: "https://rankmesh.ai", text: "rankmesh.ai" },
+        {
+          text: " is an autonomous SEO and GEO engine: agents audit, fix, write and publish; humans review and approve.",
+        },
+      ],
+      place: "Remote",
+      title: { text: "AI Engineer Intern @ Ocavior (RankMesh)" },
+    },
+    {
+      bullets: [
+        "Built a marketing site and admin dashboard with Astro, TanStack Router and Cloudflare for a platform with 500,000+ monthly visitors.",
+        "Added signed URL delivery, referer hotlink protection and image optimization to cut bandwidth waste and unauthorized reuse.",
+      ],
+      dates: "Apr 2026 – May 2026",
+      kind: "role",
+      place: "Norway, remote",
+      title: { text: "Freelance Full-Stack Developer @ SBK Base" },
+    },
+    {
+      bullets: [
+        "Built a responsive educational site for The Deep Dive with jQuery and Shopify, for interactive deep-sea learning content.",
+      ],
+      dates: "Dec 2024 – Mar 2025",
+      kind: "role",
+      place: "Mumbai",
+      title: { text: "Web Developer Intern @ Luma World" },
+    },
+    { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> type contact.txt" },
     {
       kind: "heading",
