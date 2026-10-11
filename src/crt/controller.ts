@@ -20,6 +20,7 @@ import {
   type Screen,
   type ScreenState,
   sectionAt,
+  sectionStops,
   soundSwitchCols,
   viewportRows,
 } from "./draw";
@@ -619,7 +620,7 @@ export class CrtController {
     }
     play("tick");
     if ("section" in target) {
-      this.scrollTo(this.screen.layout.sections[target.section]?.row ?? 0);
+      this.scrollTo(sectionStops(this.screen)[target.section] ?? 0);
       return;
     }
     const link = this.screen.layout.links[target.link];

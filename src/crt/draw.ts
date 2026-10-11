@@ -62,12 +62,33 @@ export const viewportRows = (grid: Grid) =>
 const INDEX_LABEL_ROW = CONTENT_TOP + 3;
 export const INDEX_TOP = INDEX_LABEL_ROW + 2;
 
-// Section the reader is in: the last one starting at or above the top
+// Scroll row each INDEX entry jumps to and lights up at: the section's
+// first row. The
+// sections at the tail fit on the last screen and can never reach the top,
+// so they share out the scroll that is left, the last one taking the end.
+export function sectionStops(screen: Screen) {
+  const max = maxScroll(screen);
+  const { sections } = screen.layout;
+  const tail = sections.findIndex((section) => section.row > max);
+  const reachable = tail === -1 ? sections.length : tail;
+  const base = Math.min(max, sections[reachable - 1]?.row ?? 0);
+  const share = (max - base) / (sections.length - reachable);
+  const stops = sections.map((section, i) =>
+    i < reachable ? section.row : base + Math.ceil(share * (i - reachable + 1))
+  );
+  // Keep every stop a row apart so each entry can light up.
+  for (let i = stops.length - 2; i >= 0; i -= 1) {
+    stops[i] = Math.max(0, Math.min(stops[i] ?? 0, (stops[i + 1] ?? 0) - 1));
+  }
+  return stops;
+}
+
+// Section the reader is in: the last one whose stop is at or above the top
 // visible row.
 export function activeSection(screen: Screen, scroll: number) {
   let active = 0;
-  for (const [i, section] of screen.layout.sections.entries()) {
-    if (section.row <= scroll + 1) {
+  for (const [i, stop] of sectionStops(screen).entries()) {
+    if (scroll > 0 && stop <= scroll) {
       active = i;
     }
   }
