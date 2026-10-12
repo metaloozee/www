@@ -23,6 +23,21 @@ export type Block =
       bullets: string[];
     }
   | { kind: "contributions"; grid: ContributionGrid; link: Span }
+  | { kind: "list"; items: string[] }
+  // A picture in its own colours. `src` is a copy at font-pixel
+  // resolution, `width` by `height`. With `video` it is the poster of a
+  // clip that plays in place and `link` is the play control; otherwise
+  // `link` opens the original.
+  | {
+      kind: "figure";
+      alt: string;
+      caption: string;
+      height: number;
+      link: Span;
+      src: string;
+      video?: string;
+      width: number;
+    }
   | { kind: "rule" };
 
 // Open roles, by index into `blocks`.
@@ -35,6 +50,11 @@ export interface ScreenDoc {
   summary: string;
   title: string;
 }
+
+// Pages of this site, which open in place. Files under /public and other
+// sites open in a new tab.
+const PAGE_PATH = /^\/[^.]*$/;
+export const isInternal = (href: string) => PAGE_PATH.test(href);
 
 // Links and role toggles in reading order. The canvas and the hidden DOM
 // copy both number them by position in this list, which is how focus stays
@@ -56,6 +76,8 @@ export function collectLinks(doc: ScreenDoc): Span[] {
       spans.push(block.title);
       add(...(block.lead ?? []));
     } else if (block.kind === "contributions" && block.grid.days.length > 0) {
+      add(block.link);
+    } else if (block.kind === "figure") {
       add(block.link);
     }
   }

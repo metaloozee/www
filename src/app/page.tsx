@@ -22,7 +22,12 @@ export default async function IndexPage() {
         dangerouslySetInnerHTML={{ __html: jsonLd }}
         type="application/ld+json"
       />
-      <SiteView doc={doc} initialView="human" markdown={toMarkdown(doc)} />
+      <SiteView
+        doc={doc}
+        initialView="human"
+        markdown={toMarkdown(doc)}
+        path="/"
+      />
     </>
   );
 }

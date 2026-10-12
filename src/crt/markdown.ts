@@ -1,3 +1,4 @@
+import { SITE_URL } from "@/lib/site";
 import type { Block, ScreenDoc, Span } from "./doc";
 
 const WIDTH = 72;
@@ -6,9 +7,15 @@ const SPACES = /\s+/;
 export const FONT_CREDIT =
   "Screen font: Px437 IBM VGA 8x16, Ultimate Oldschool PC Font Pack (int10h.org), CC BY-SA 4.0.";
 
+// Markdown is read away from the site, so its links are absolute.
+const absolute = (href: string) =>
+  href.startsWith("/") ? `${SITE_URL}${href}` : href;
+
 const inline = (spans: Span[]) =>
   spans
-    .map((span) => (span.href ? `[${span.text}](${span.href})` : span.text))
+    .map((span) =>
+      span.href ? `[${span.text}](${absolute(span.href)})` : span.text
+    )
     .join("");
 
 // Hard-wraps on spaces so the source reads well raw. Words longer than the
@@ -30,8 +37,10 @@ function wrap(text: string, first: string, rest = first) {
   return lines.join("\n");
 }
 
+const LONE_I = /(?<![a-z])i(?![a-z])/g;
 const sentenceCase = (text: string) =>
-  text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+  text.charAt(0).toUpperCase() +
+  text.slice(1).toLowerCase().replace(LONE_I, "I");
 
 function blockMarkdown(block: Block): string | undefined {
   switch (block.kind) {
@@ -52,6 +61,16 @@ function blockMarkdown(block: Block): string | undefined {
         ...(block.lead ? [wrap(inline(block.lead), "")] : []),
         block.bullets.map((bullet) => wrap(bullet, "- ", "  ")).join("\n"),
       ].join("\n\n");
+    case "list":
+      return block.items.map((item) => wrap(item, "- ", "  ")).join("\n");
+    case "figure": {
+      const target = absolute(block.link.href ?? block.src);
+      // Markdown has no video, so a clip is a link to its file.
+      const media = block.video
+        ? `[Video: ${block.alt}](${target})`
+        : `![${block.alt}](${target})`;
+      return `${media}\n\n${wrap(block.caption, "")}`;
+    }
     case "contributions": {
       const { grid, link } = block;
       if (grid.days.length === 0) {

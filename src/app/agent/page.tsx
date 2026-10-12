@@ -11,5 +11,12 @@ export const metadata: Metadata = { alternates: HOME_ALTERNATES };
 
 export default async function AgentPage() {
   const doc = await loadDoc();
-  return <SiteView doc={doc} initialView="agent" markdown={toMarkdown(doc)} />;
+  return (
+    <SiteView
+      doc={doc}
+      initialView="agent"
+      markdown={toMarkdown(doc)}
+      path="/"
+    />
+  );
 }

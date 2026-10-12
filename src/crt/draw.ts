@@ -1,11 +1,14 @@
 import {
   DAY_PX,
+  type FigureLine,
+  figureBySrc,
   type GraphLine,
   lineRows,
   type Run,
   runWidth,
   type ScreenLayout,
   type Tone,
+  transportCols,
 } from "./layout";
 
 export const CELL_W = 8;
@@ -31,6 +34,8 @@ export interface ScreenState {
   focus?: number;
   // The game has the whole screen: the page and INDEX are not drawn.
   full?: boolean;
+  // Src of the figure that has the whole screen, likewise.
+  fullFigure?: string;
   hover?: number;
   hoverSection?: number;
   // Pointer or keyboard focus on the HUMAN/AGENT switch.
@@ -44,14 +49,20 @@ export interface ScreenState {
 export interface Screen {
   ascent: number;
   grid: Grid;
+  // Figure pictures by src, once loaded.
+  images: Map<string, CanvasImageSource>;
   layout: ScreenLayout;
   palette: Palette;
   title: string;
+  // Clips by their figure's src: the <video> elements of the HTML copy.
+  videos: Map<string, HTMLVideoElement>;
 }
 
 const HINTS = "↑↓ SCROLL    TAB LINKS    ENTER OPEN";
 const SHORT_HINTS = "↑↓ SCROLL";
 const FULL_HINTS = "G PLAY    F EXIT FULL SCREEN";
+const CLIP_HINTS = "SPACE PLAY/PAUSE    ESC EXIT FULL SCREEN";
+const PICTURE_HINTS = "ESC EXIT FULL SCREEN";
 const DAY_SQUARE = 6;
 
 // Row 0 is the title bar and the last row the status bar. Two blank rows
@@ -185,6 +196,130 @@ function drawGraph(
   }
 }
 
+const clockText = (seconds: number) => {
+  if (!Number.isFinite(seconds)) {
+    return "--:--";
+  }
+  const whole = Math.floor(seconds);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(whole / 60))}:${pad(whole % 60)}`;
+};
+
+// A clip counts as started once it has a frame other than its poster.
+const hasFrame = (video: HTMLVideoElement) =>
+  video.readyState >= 2 && (video.currentTime > 0 || !video.paused);
+
+export const isPlaying = (video: HTMLVideoElement) =>
+  !(video.paused || video.ended);
+
+// Where a figure is drawn: `col` and `row` in cells, size in font pixels.
+export interface MediaRect {
+  col: number;
+  height: number;
+  row: number;
+  width: number;
+}
+
+// The largest whole-cell box of the figure's shape that fits between the
+// bars, centred, with a row kept under a clip for its controls.
+export function fullRect(grid: Grid, figure: FigureLine): MediaRect {
+  const controls = figure.video ? 1 : 0;
+  const rows = viewportRows(grid) - controls;
+  const aspect = figure.width / figure.height;
+  const cols = Math.max(
+    1,
+    Math.min(grid.cols - 2, Math.floor((rows * CELL_H * aspect) / CELL_W))
+  );
+  const width = cols * CELL_W;
+  const height = Math.round(width / aspect);
+  const used = Math.ceil(height / CELL_H) + controls;
+  return {
+    col: Math.floor((grid.cols - cols) / 2),
+    height,
+    row: CONTENT_TOP + Math.floor((viewportRows(grid) - used) / 2),
+    width,
+  };
+}
+
+// The row under a clip: play or pause glyph, a bar of cells like the boot
+// progress bar, elapsed over total time, and the full-screen switch.
+function drawTransport(
+  ctx: CanvasRenderingContext2D,
+  screen: Screen,
+  state: ScreenState,
+  video: HTMLVideoElement | undefined,
+  rect: MediaRect
+) {
+  const { palette } = screen;
+  const row = rect.row + Math.ceil(rect.height / CELL_H);
+  const { bar, clock, full } = transportCols(Math.floor(rect.width / CELL_W));
+  const elapsed = video?.currentTime ?? 0;
+  const total = video?.duration ?? Number.NaN;
+  const filled = Number.isFinite(total)
+    ? Math.round((elapsed / total) * (bar.end - bar.start))
+    : 0;
+  setFont(ctx, 1);
+  ctx.fillStyle = palette.phosphor;
+  textAt(ctx, screen, video && isPlaying(video) ? "▐▐" : "►", rect.col, row);
+  for (let col = bar.start; col < bar.end; col += 1) {
+    ctx.fillStyle = col - bar.start < filled ? palette.phosphor : palette.ghost;
+    ctx.fillRect(
+      (rect.col + col) * CELL_W + 1,
+      row * CELL_H + 4,
+      CELL_W - 2,
+      CELL_H - 8
+    );
+  }
+  ctx.fillStyle = palette.faint;
+  textAt(
+    ctx,
+    screen,
+    `${clockText(elapsed)}/${clockText(total)}`,
+    rect.col + clock,
+    row
+  );
+  ctx.fillStyle = palette.phosphor;
+  const label = state.fullFigure === undefined ? "[FULL]" : "[EXIT]";
+  textAt(ctx, screen, label, rect.col + full, row);
+}
+
+// A picture or a playing clip, in its own colours: the glass still curves,
+// fringes and scans it. Until the picture loads the frame holds its place.
+// Keyboard focus on the figure's control lights the frame.
+function drawFigure(
+  ctx: CanvasRenderingContext2D,
+  screen: Screen,
+  state: ScreenState,
+  figure: FigureLine,
+  rect: MediaRect
+) {
+  const { palette } = screen;
+  const x = rect.col * CELL_W;
+  const y = rect.row * CELL_H;
+  const video = screen.videos.get(figure.src);
+  const sharp =
+    state.fullFigure !== undefined && figure.full !== undefined
+      ? screen.images.get(figure.full)
+      : undefined;
+  const image =
+    video && hasFrame(video) ? video : (sharp ?? screen.images.get(figure.src));
+  if (figure.video) {
+    drawTransport(ctx, screen, state, video, rect);
+  }
+  if (image) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(image, x, y, rect.width, rect.height);
+  } else {
+    setFont(ctx, 1);
+    ctx.fillStyle = palette.faint;
+    textAt(ctx, screen, "LOADING PICTURE ...", rect.col + 2, rect.row + 1);
+  }
+  const focused = figure.link !== undefined && figure.link === state.focus;
+  ctx.strokeStyle = focused ? palette.hot : palette.faint;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, rect.width - 1, rect.height - 1);
+}
+
 function drawContent(
   ctx: CanvasRenderingContext2D,
   screen: Screen,
@@ -205,6 +340,15 @@ function drawContent(
     }
     if (line.graph) {
       drawGraph(ctx, screen, state, line.graph, row);
+    }
+    if (line.figure) {
+      const { height, width } = line.figure;
+      drawFigure(ctx, screen, state, line.figure, {
+        col: grid.margin,
+        height,
+        row,
+        width,
+      });
     }
     for (const run of line.runs) {
       drawRun(ctx, screen, state, run, row);
@@ -367,12 +511,20 @@ function drawBars(
   const last = grid.rows - 1;
   const pad = (n: number) => String(n).padStart(3, "0");
   // In full screen the page is hidden, so its position and keys are too.
-  const position = state.full
-    ? ""
-    : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
+  const shown =
+    state.fullFigure === undefined
+      ? undefined
+      : figureBySrc(screen.layout, state.fullFigure);
+  const position =
+    state.full || shown
+      ? ""
+      : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
   const room = grid.cols - position.length - 3;
   const pageHints = HINTS.length <= room ? HINTS : SHORT_HINTS;
-  const hints = state.full ? FULL_HINTS : pageHints;
+  let hints = state.full ? FULL_HINTS : pageHints;
+  if (shown) {
+    hints = shown.video ? CLIP_HINTS : PICTURE_HINTS;
+  }
   ctx.fillStyle = palette.faint;
   textAt(ctx, screen, (state.status ?? hints).slice(0, room), 1, last);
   textAt(ctx, screen, position, grid.cols - position.length - 1, last);
@@ -386,7 +538,13 @@ export function drawScreen(
   ctx.fillStyle = screen.palette.glass;
   ctx.fillRect(0, 0, screen.grid.cols * CELL_W, screen.grid.rows * CELL_H);
   ctx.textBaseline = "alphabetic";
-  if (!state.full) {
+  const shown =
+    state.fullFigure === undefined
+      ? undefined
+      : figureBySrc(screen.layout, state.fullFigure);
+  if (shown) {
+    drawFigure(ctx, screen, state, shown, fullRect(screen.grid, shown));
+  } else if (!state.full) {
     drawContent(ctx, screen, state);
     drawIndex(ctx, screen, state);
   }

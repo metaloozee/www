@@ -6,14 +6,16 @@ import {
   drawBoot,
   stepLine,
 } from "./boot";
-import type { OpenRoles, ScreenDoc } from "./doc";
+import { isInternal, type OpenRoles, type ScreenDoc } from "./doc";
 import {
   CELL_H,
   CELL_W,
   CONTENT_TOP,
   drawScreen,
   FONT_FAMILY,
+  fullRect,
   type Grid,
+  isPlaying,
   maxScroll,
   modeSwitchCols,
   type Palette,
@@ -24,7 +26,16 @@ import {
   soundSwitchCols,
   viewportRows,
 } from "./draw";
-import { dayAt, layoutDoc, linkAtCell, type ScreenLink } from "./layout";
+import {
+  dayAt,
+  type FigureHit,
+  figureAt,
+  figureBySrc,
+  layoutDoc,
+  linkAtCell,
+  type ScreenLink,
+  transportAt,
+} from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
 import { drawGame, gameRect, SnakeGame, scoreText } from "./snake";
 import { play, soundEnabled, subscribeSound, toggleSound } from "./sound";
@@ -61,8 +72,11 @@ const linkStatus = (link?: ScreenLink) => {
   if (link?.toggle) {
     return link.toggle.open ? "COLLAPSE ROLE" : "EXPAND ROLE";
   }
-  return link?.href;
+  return link?.figure ? "ENTER FULL SCREEN" : link?.href;
 };
+// How long a screen with no page waits for the next page to take it over.
+const HANDOVER_MS = 1000;
+const CANVAS_CLASS = "absolute inset-0 size-full touch-none";
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
@@ -157,6 +171,8 @@ function fitGrid(width: number, height: number) {
 
 export interface MountOptions {
   onAgent: () => void;
+  // A link into this site was activated; the owner routes to it.
+  onNavigate: (href: string) => void;
   // A role title was clicked on the glass; the owner flips it and calls
   // setOpen.
   onToggle: (block: number) => void;
@@ -165,12 +181,27 @@ export interface MountOptions {
   powerOn: boolean;
 }
 
+// The boot plays once per page load, not again on each page of the site.
+let booted = false;
+
+// One screen outlives the page that mounted it. When a page unmounts, its
+// controller waits here, still lit, and the next page adopts it: the
+// picture changes in place instead of the glass going dark and rebooting.
+let waiting: CrtController | undefined;
+let running = 0;
+
+// True while a screen is lit, so a page mounting next knows it has one to
+// take over and need not show the HTML copy first.
+export const crtRunning = () => running > 0;
+
 type Target =
   | { mode: "agent" }
   | { sound: true }
   | { link: number }
   | { section: number }
   | { game: true }
+  // Part of a figure: its picture, or a control in a clip's row.
+  | FigureHit
   | { day: ContributionDay; index: number };
 
 const dayStatus = ({ count, date, weekday }: ContributionDay) =>
@@ -186,15 +217,19 @@ const SCROLL_KEYS: Record<string, (page: number) => number> = {
 };
 
 export class CrtController {
-  private readonly glass: HTMLElement;
+  // The page-owned parts change when another page adopts the screen.
+  private glass: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
-  private readonly doc: ScreenDoc;
-  private readonly onAgent: () => void;
-  private readonly onToggle: (block: number) => void;
+  private doc: ScreenDoc;
+  private onAgent: () => void;
+  private onToggle: (block: number) => void;
+  private onNavigate: (href: string) => void;
   private open: OpenRoles = new Set();
   private readonly renderer: CrtRenderer;
   private readonly text: HTMLCanvasElement;
-  private readonly copy: HTMLElement;
+  private copy: HTMLElement;
+  private handover = 0;
+  private figureHover: string | undefined;
   private readonly ctx: CanvasRenderingContext2D;
   private readonly screen: Screen;
   private readonly state: ScreenState = {
@@ -248,17 +283,18 @@ export class CrtController {
     gl: WebGL2RenderingContext,
     ctx: CanvasRenderingContext2D,
     doc: ScreenDoc,
-    { onAgent, onToggle, powerOn }: MountOptions
+    { onAgent, onNavigate, onToggle, powerOn }: MountOptions
   ) {
     this.glass = glass;
     this.onAgent = onAgent;
     this.onToggle = onToggle;
+    this.onNavigate = onNavigate;
     this.powerOn = powerOn;
     this.canvas = canvas;
     this.copy = copy;
     this.text = ctx.canvas;
     this.dirty = true;
-    this.booting = true;
+    this.booting = powerOn || !booted;
     this.doc = doc;
     this.ctx = ctx;
     const { palette, tube } = readTokens();
@@ -267,9 +303,11 @@ export class CrtController {
     this.screen = {
       ascent: Math.round(ctx.measureText("M").fontBoundingBoxAscent || 12),
       grid: { cols: 1, margin: 0, measure: 1, rows: 1 },
+      images: new Map(),
       layout: layoutDoc(doc, 1),
       palette,
       title: doc.title,
+      videos: new Map(),
     };
   }
 
@@ -278,11 +316,22 @@ export class CrtController {
   // unavailable: it spends seconds of main thread on every shader frame.
   static async mount(
     glass: HTMLElement,
-    canvas: HTMLCanvasElement,
+    host: HTMLElement,
     copy: HTMLElement,
     doc: ScreenDoc,
     options: MountOptions
   ): Promise<CrtController | null> {
+    // Before any await, so a page that mounts in the same commit as the
+    // last one unmounted takes the screen over before the next paint.
+    const lit = waiting;
+    waiting = undefined;
+    if (lit && !options.powerOn) {
+      lit.adopt(glass, host, copy, doc, options);
+      return lit;
+    }
+    lit?.dispose();
+    const canvas = document.createElement("canvas");
+    canvas.className = CANVAS_CLASS;
     const gl = canvas.getContext("webgl2", {
       alpha: false,
       antialias: false,
@@ -302,9 +351,68 @@ export class CrtController {
       doc,
       options
     );
+    host.append(canvas);
     controller.loadPortrait();
+    controller.loadFigures();
     controller.start();
     return controller;
+  }
+
+  // Takes the lit screen over for another page: new content, new
+  // listeners, the same canvas and frame loop.
+  private adopt(
+    glass: HTMLElement,
+    host: HTMLElement,
+    copy: HTMLElement,
+    doc: ScreenDoc,
+    { onAgent, onNavigate, onToggle }: MountOptions
+  ) {
+    clearTimeout(this.handover);
+    this.glass = glass;
+    this.copy = copy;
+    this.doc = doc;
+    this.onAgent = onAgent;
+    this.onNavigate = onNavigate;
+    this.onToggle = onToggle;
+    host.append(this.canvas);
+    this.open = new Set();
+    Object.assign(this.state, {
+      day: undefined,
+      focus: undefined,
+      full: false,
+      fullFigure: undefined,
+      hover: undefined,
+      hoverSection: undefined,
+      modeHover: false,
+      scroll: 0,
+      soundHover: false,
+      status: undefined,
+    });
+    this.figureHover = undefined;
+    this.canvas.style.cursor = "default";
+    this.screen.title = doc.title;
+    this.screen.images = new Map();
+    this.screen.videos = new Map();
+    this.loadFigures();
+    this.bind();
+  }
+
+  // The page is going away. The screen stays lit for the next page to
+  // adopt; if none does, or the power-off already played, it is disposed.
+  release() {
+    this.unbind();
+    if (this.offAt !== undefined) {
+      this.dispose();
+      return;
+    }
+    waiting?.dispose();
+    waiting = this;
+    this.handover = window.setTimeout(() => {
+      if (waiting === this) {
+        waiting = undefined;
+      }
+      this.dispose();
+    }, HANDOVER_MS);
   }
 
   private loadPortrait() {
@@ -321,8 +429,41 @@ export class CrtController {
     image.src = PORTRAIT_URL;
   }
 
+  // Pictures arrive after the text; each redraws the screen as it lands.
+  // A clip is the <video> of the HTML copy, drawn here frame by frame.
+  private loadFigures() {
+    const redraw = () => {
+      this.dirty = true;
+    };
+    for (const block of this.doc.blocks) {
+      if (block.kind !== "figure") {
+        continue;
+      }
+      const video = [...this.copy.querySelectorAll("video")].find(
+        (candidate) => candidate.dataset.figure === block.src
+      );
+      if (video) {
+        this.screen.videos.set(block.src, video);
+        for (const type of ["play", "pause", "seeked", "loadeddata"] as const) {
+          this.listen(video, type, redraw);
+        }
+      }
+      const image = new Image();
+      image.addEventListener(
+        "load",
+        () => {
+          this.screen.images.set(block.src, image);
+          this.dirty = true;
+        },
+        { once: true }
+      );
+      image.src = block.src;
+    }
+  }
+
   private endBoot() {
     if (this.booting) {
+      booted = true;
       this.booting = false;
       this.dirty = true;
     }
@@ -405,18 +546,128 @@ export class CrtController {
     this.dirty = true;
   }
 
-  dispose() {
-    cancelAnimationFrame(this.frameId);
-    for (const undo of this.teardown) {
+  private unbind() {
+    for (const undo of this.teardown.splice(0)) {
       undo();
     }
+  }
+
+  private dispose() {
+    clearTimeout(this.handover);
+    cancelAnimationFrame(this.frameId);
+    this.unbind();
+    this.canvas.remove();
+    running -= 1;
+  }
+
+  private toggleVideo(src: string, seek?: number) {
+    const video = this.screen.videos.get(src);
+    if (!video) {
+      return;
+    }
+    if (seek !== undefined && Number.isFinite(video.duration)) {
+      video.currentTime = seek * video.duration;
+    } else if (video.paused) {
+      video.play().catch(() => {
+        // Playback refused: the poster stays up.
+      });
+    } else {
+      video.pause();
+    }
+    this.dirty = true;
+  }
+
+  // Gives a figure the whole screen, or hands the screen back to the
+  // page. A picture swaps to its full-size file once that has loaded.
+  private toggleFullFigure(src?: string) {
+    const entering = this.state.fullFigure === undefined && src !== undefined;
+    this.state.fullFigure = entering ? src : undefined;
+    this.setHover(undefined);
+    this.dirty = true;
+    const full = src && figureBySrc(this.screen.layout, src)?.full;
+    if (!(entering && full) || this.screen.images.has(full)) {
+      return;
+    }
+    const image = new Image();
+    image.addEventListener(
+      "load",
+      () => {
+        this.screen.images.set(full, image);
+        this.dirty = true;
+      },
+      { once: true }
+    );
+    image.src = full;
+  }
+
+  private figureStatus({ figure, part }: FigureHit) {
+    if (part === "seek") {
+      return "SEEK";
+    }
+    const full = this.state.fullFigure === undefined ? "ENTER" : "EXIT";
+    if (part === "full" || !figure.video) {
+      return `${full} FULL SCREEN`;
+    }
+    const video = this.screen.videos.get(figure.src);
+    return video && isPlaying(video) ? "PAUSE VIDEO" : "PLAY VIDEO";
+  }
+
+  // The figure in full screen takes the keys: none of them scrolls the
+  // hidden page.
+  private figureKey(event: KeyboardEvent) {
+    const src = this.state.fullFigure;
+    const key = event.key.toLowerCase();
+    if (src === undefined) {
+      // F on a focused figure's control gives that figure the screen.
+      const focused = this.screen.layout.links[this.state.focus ?? -1]?.figure;
+      if (key === "f" && focused) {
+        this.toggleFullFigure(focused);
+        return true;
+      }
+      return false;
+    }
+    if (key === "escape" || key === "f") {
+      this.toggleFullFigure();
+    } else if (key === " " || key === "k") {
+      this.toggleVideo(src);
+    }
+    return key !== "tab";
+  }
+
+  // Under the pointer while a figure has the screen: its picture and, for
+  // a clip, its control row. A picture leaves full screen from anywhere.
+  private fullTargetAt(row: number, col: number): Target | undefined {
+    const { grid, layout } = this.screen;
+    const figure = figureBySrc(layout, this.state.fullFigure ?? "");
+    if (!figure) {
+      return;
+    }
+    if (!figure.video) {
+      return { figure, part: "picture" };
+    }
+    const rect = fullRect(grid, figure);
+    const cols = Math.floor(rect.width / CELL_W);
+    const pictureRows = Math.ceil(rect.height / CELL_H);
+    const inCols = col >= rect.col && col < rect.col + cols;
+    if (inCols && row >= rect.row && row < rect.row + pictureRows) {
+      return { figure, part: "picture" };
+    }
+    const control =
+      inCols && row === rect.row + pictureRows
+        ? transportAt(cols, col - rect.col)
+        : undefined;
+    return control && { figure, ...control };
   }
 
   private focusLink(id?: number) {
     this.endBoot();
     const link = id === undefined ? undefined : this.screen.layout.links[id];
     this.state.focus = id;
-    this.state.status = linkStatus(link);
+    // Enter on a clip's control plays it rather than filling the screen.
+    const clip = link?.figure && this.screen.videos.has(link.figure);
+    this.state.status = clip
+      ? "ENTER PLAY/PAUSE    F FULL SCREEN"
+      : linkStatus(link);
     if (link) {
       const visible = viewportRows(this.screen.grid);
       if (link.row < this.state.scroll) {
@@ -428,7 +679,9 @@ export class CrtController {
     this.dirty = true;
   }
 
-  private start() {
+  // Everything tied to the current page: listeners on its elements and
+  // the size of its glass.
+  private bind() {
     this.bindPointer();
     this.bindKeys();
     this.bindFocus();
@@ -445,6 +698,12 @@ export class CrtController {
     observer.observe(this.glass);
     this.teardown.push(() => observer.disconnect());
     this.resize();
+    this.dirty = true;
+  }
+
+  private start() {
+    running += 1;
+    this.bind();
     this.startedAt = performance.now();
     this.bootAt = this.startedAt;
     if (this.powerOn && !this.reducedMotion.matches) {
@@ -639,6 +898,9 @@ export class CrtController {
     if (row === 0 && col >= mute.start && col < mute.end) {
       return { sound: true };
     }
+    if (this.state.fullFigure !== undefined) {
+      return this.fullTargetAt(row, col);
+    }
     const game = this.gameTargetAt(row, col);
     // Behind a game or full screen, nothing else on the page responds.
     if (game || this.game.active || this.state.full) {
@@ -655,6 +917,10 @@ export class CrtController {
     const link = linkAtCell(layout, docRow, col - grid.margin);
     if (link !== undefined) {
       return { link };
+    }
+    const shown = figureAt(layout, docRow, col - grid.margin);
+    if (shown) {
+      return shown;
     }
     const docY = y + (this.state.scroll - CONTENT_TOP) * CELL_H;
     const hit = dayAt(layout, docY, col - grid.margin);
@@ -685,6 +951,9 @@ export class CrtController {
     if ("game" in target) {
       return PLAY_STATUS;
     }
+    if ("figure" in target) {
+      return this.figureStatus(target);
+    }
     return dayStatus(target.day);
   }
 
@@ -695,8 +964,13 @@ export class CrtController {
     const mode = target !== undefined && "mode" in target;
     const sound = target !== undefined && "sound" in target;
     const game = target !== undefined && "game" in target;
+    const figure =
+      target && "figure" in target
+        ? `${target.figure.src} ${target.part}`
+        : undefined;
     const { state } = this;
     if (
+      figure === this.figureHover &&
       game === this.gameHover &&
       link === state.hover &&
       section === state.hoverSection &&
@@ -712,9 +986,15 @@ export class CrtController {
     state.modeHover = mode;
     state.soundHover = sound;
     this.gameHover = game;
+    this.figureHover = figure;
     state.status = this.statusFor(target) ?? this.playingStatus();
     const clickable =
-      link !== undefined || section !== undefined || game || mode || sound;
+      link !== undefined ||
+      section !== undefined ||
+      figure !== undefined ||
+      game ||
+      mode ||
+      sound;
     this.canvas.style.cursor = clickable ? "pointer" : "default";
     this.dirty = true;
     // Only the pointer reaches here; keyboard focus stays silent.
@@ -747,13 +1027,31 @@ export class CrtController {
       this.scrollTo(sectionStops(this.screen)[target.section] ?? 0);
       return;
     }
+    if ("figure" in target) {
+      const { figure, part, seek } = target;
+      // A picture has one thing to do; a clip plays unless its
+      // full-screen switch was the part clicked.
+      if (part === "full" || !figure.video) {
+        this.toggleFullFigure(figure.src);
+      } else {
+        this.toggleVideo(figure.src, seek);
+        this.state.status = this.statusFor(target);
+      }
+      return;
+    }
     const link = this.screen.layout.links[target.link];
     if (link?.toggle) {
       this.onToggle(link.toggle.block);
       return;
     }
+    if (link?.figure) {
+      this.toggleFullFigure(link.figure);
+      return;
+    }
     const href = link?.href;
-    if (href) {
+    if (href && isInternal(href)) {
+      this.onNavigate(href);
+    } else if (href) {
       setTimeout(
         () => window.open(href, "_blank", "noopener,noreferrer"),
         LINK_OPEN_DELAY_MS
@@ -768,7 +1066,8 @@ export class CrtController {
       "wheel",
       (event) => {
         event.preventDefault();
-        if (this.game.active || this.state.full) {
+        const held = this.state.full || this.state.fullFigure !== undefined;
+        if (this.game.active || held) {
           return;
         }
         const lineMode = event.deltaMode === 1;
@@ -836,11 +1135,20 @@ export class CrtController {
     // Links and role toggles in the copy work by keyboard, so they click
     // here too.
     this.listen(this.copy, "click", (event) => {
-      if (
-        event.target instanceof Element &&
-        event.target.closest("a, [data-link]")
-      ) {
-        play("tick");
+      const control =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>("a, [data-link]")
+          : null;
+      if (!control) {
+        return;
+      }
+      play("tick");
+      // A picture's link opens the file where there is no screen; here
+      // the picture takes the screen instead.
+      const link = this.screen.layout.links[Number(control.dataset.link)];
+      if (control instanceof HTMLAnchorElement && link?.figure) {
+        event.preventDefault();
+        this.toggleFullFigure(link.figure);
       }
     });
     this.listen(this.copy, "focusout", () => {
@@ -861,7 +1169,7 @@ export class CrtController {
       if (modified || isTyping(event.target)) {
         return;
       }
-      if (this.gameKey(event)) {
+      if (this.figureKey(event) || this.gameKey(event)) {
         event.preventDefault();
         this.dirty = true;
         return;
@@ -948,6 +1256,12 @@ export class CrtController {
       this.updateGame(now, motion);
     }
     this.frameAt = now;
+    // A playing clip has a new frame, and a new position, every tick.
+    for (const video of this.screen.videos.values()) {
+      if (isPlaying(video)) {
+        this.dirty = true;
+      }
+    }
     const redraw = this.takeDirty();
     if (redraw) {
       const { screen } = this;

@@ -1,19 +1,23 @@
 "use client";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   useSyncExternalStore,
 } from "react";
 import { GitHubContributions } from "@/components/github-contributions";
-import { CrtController } from "@/crt/controller";
+import { CrtController, crtRunning } from "@/crt/controller";
 import {
   type Block,
   collectLinks,
+  isInternal,
   type OpenRoles,
   type ScreenDoc,
   type Span,
@@ -36,14 +40,21 @@ interface CrtScreenProps {
 export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   const glassRef = useRef<HTMLDivElement>(null);
   const switchRef = useRef<HTMLButtonElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // The controller puts its canvas here. It owns the canvas so the lit
+  // screen can move to the next page instead of being rebuilt.
+  const hostRef = useRef<HTMLDivElement>(null);
   const copyRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<CrtController | null>(null);
-  // undefined while the controller mounts. On a return the glass stays
-  // dark meanwhile rather than flashing the HTML fallback.
-  const [live, setLive] = useState(returning ? undefined : false);
+  // undefined while the controller mounts. On a return, or when a screen
+  // is already lit for this page to take over, the glass shows that
+  // meanwhile rather than flashing the HTML fallback.
+  const [live, setLive] = useState(() =>
+    returning || crtRunning() ? undefined : false
+  );
   const [powerOn] = useState(returning ?? false);
   const handOver = useEffectEvent(onAgent);
+  const router = useRouter();
+  const navigate = useEffectEvent((href: string) => router.push(href));
   const [open, setOpen] = useState<OpenRoles>(new Set());
   const toggleRole = useCallback((block: number) => {
     setOpen((current) => {
@@ -74,22 +85,25 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
     }
   }, [powerOn]);
 
-  useEffect(() => {
+  // A layout effect: a lit screen is taken over before the browser paints
+  // the new page, so the picture never drops out between pages.
+  useLayoutEffect(() => {
     const glass = glassRef.current;
-    const canvas = canvasRef.current;
+    const host = hostRef.current;
     const copy = copyRef.current;
-    if (!(glass && canvas && copy)) {
+    if (!(glass && host && copy)) {
       return;
     }
     let disposed = false;
-    CrtController.mount(glass, canvas, copy, doc, {
+    CrtController.mount(glass, host, copy, doc, {
       onAgent: () => handOver(),
+      onNavigate: (href) => navigate(href),
       onToggle: toggleRole,
       powerOn,
     })
       .then((controller) => {
         if (disposed) {
-          controller?.dispose();
+          controller?.release();
           return;
         }
         controllerRef.current = controller;
@@ -98,7 +112,7 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
       .catch(() => setLive(false));
     return () => {
       disposed = true;
-      controllerRef.current?.dispose();
+      controllerRef.current?.release();
       controllerRef.current = null;
     };
   }, [doc, powerOn, toggleRole]);
@@ -114,11 +128,10 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   return (
     <main className="crt-casing">
       <div className="crt-glass" ref={glassRef}>
-        <canvas
-          className={
-            live === false ? "hidden" : "absolute inset-0 size-full touch-none"
-          }
-          ref={canvasRef}
+        <div
+          aria-hidden="true"
+          className={live === false ? "hidden" : "absolute inset-0"}
+          ref={hostRef}
         />
         <div
           className={
@@ -146,7 +159,12 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
           >
             Switch to agent view
           </button>
-          <DocCopy doc={doc} onToggle={toggleRole} open={open} />
+          <DocCopy
+            doc={doc}
+            fallback={live === false}
+            onToggle={toggleRole}
+            open={open}
+          />
         </div>
       </div>
     </main>
@@ -155,13 +173,30 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
 
 type LinkIds = Map<Span, number>;
 
-function Inline({ ids, span }: { ids: LinkIds; span: Span }) {
+function Inline({
+  ids,
+  label,
+  span,
+}: {
+  ids: LinkIds;
+  // Accessible name when the link text alone says too little.
+  label?: string;
+  span: Span;
+}) {
   const id = ids.get(span);
   if (!span.href || id === undefined) {
     return span.text;
   }
+  if (isInternal(span.href)) {
+    return (
+      <Link className="text-phosphor underline" data-link={id} href={span.href}>
+        {span.text}
+      </Link>
+    );
+  }
   return (
     <a
+      aria-label={label && `${label} (opens in a new tab)`}
       className="text-phosphor underline"
       data-link={id}
       href={span.href}
@@ -229,8 +264,89 @@ function RoleCopy({
   );
 }
 
+// A picture, or a clip with its play control. On the CRT the canvas draws
+// the clip from this <video>, so the button drives both; in the fallback
+// the browser's own controls show.
+function FigureCopy({
+  block,
+  fallback,
+  ids,
+}: {
+  block: Extract<Block, { kind: "figure" }>;
+  fallback: boolean;
+  ids: LinkIds;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current;
+    if (video?.paused) {
+      video.play().catch(() => {
+        // Playback refused: the poster stays up.
+      });
+    } else {
+      video?.pause();
+    }
+  }, []);
+  const media = "h-auto w-full border border-phosphor-faint";
+  if (block.video) {
+    return (
+      <figure>
+        <video
+          aria-label={block.alt}
+          className={media}
+          controls={fallback}
+          data-figure={block.src}
+          height={block.height}
+          muted
+          playsInline
+          poster={block.src}
+          preload="none"
+          ref={videoRef}
+          src={block.video}
+          width={block.width}
+        />
+        {/* Never shown: the clip's controls say all of this. It names the
+            clip for screen readers and is the keyboard's play control on
+            the CRT. */}
+        <figcaption className="sr-only">
+          {block.caption}{" "}
+          <button
+            data-link={ids.get(block.link)}
+            onClick={togglePlay}
+            tabIndex={fallback ? -1 : undefined}
+            type="button"
+          >
+            Play or pause the video
+          </button>
+        </figcaption>
+      </figure>
+    );
+  }
+  return (
+    <figure>
+      {/* biome-ignore lint/performance/noImgElement: a 576px copy, already the size it is drawn at. */}
+      <img
+        alt={block.alt}
+        className={media}
+        height={block.height}
+        src={block.src}
+        width={block.width}
+      />
+      <figcaption className="text-phosphor-faint">
+        {block.caption}{" "}
+        <Inline
+          ids={ids}
+          label={`${block.link.text}: ${block.alt}`}
+          span={block.link}
+        />
+      </figcaption>
+    </figure>
+  );
+}
+
 function BlockCopy({
   block,
+  fallback,
   ids,
   index,
   isFirstHeading,
@@ -238,6 +354,7 @@ function BlockCopy({
   open,
 }: {
   block: Block;
+  fallback: boolean;
   ids: LinkIds;
   index: number;
   isFirstHeading: boolean;
@@ -302,6 +419,16 @@ function BlockCopy({
           profileUrl={block.link.href ?? ""}
         />
       );
+    case "list":
+      return (
+        <ul className="list-inside list-['-_']">
+          {block.items.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      );
+    case "figure":
+      return <FigureCopy block={block} fallback={fallback} ids={ids} />;
     case "rule":
       return <hr className="border-phosphor-faint" />;
     default:
@@ -313,10 +440,13 @@ function BlockCopy({
 // no-WebGL fallback.
 function DocCopy({
   doc,
+  fallback,
   onToggle,
   open,
 }: {
   doc: ScreenDoc;
+  // The copy is the visible page: no WebGL.
+  fallback: boolean;
   onToggle: (block: number) => void;
   open: OpenRoles;
 }) {
@@ -330,6 +460,7 @@ function DocCopy({
       {doc.blocks.map((block, i) => (
         <BlockCopy
           block={block}
+          fallback={fallback}
           ids={ids}
           index={i}
           isFirstHeading={i === firstHeading}

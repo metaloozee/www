@@ -41,11 +41,14 @@ function toneRuns(markdown: string) {
 export function AgentView({
   focusSwitch,
   markdown,
+  markdownPath,
   onHuman,
 }: {
   // Switched to rather than loaded: focus follows the switch across.
   focusSwitch: boolean;
   markdown: string;
+  // Where this page's markdown is served raw.
+  markdownPath: string;
   onHuman: () => void;
 }) {
   const switchRef = useRef<HTMLButtonElement>(null);
@@ -63,8 +66,8 @@ export function AgentView({
           <span className="font-semibold text-phosphor">text/markdown</span>
           <span className="text-phosphor-faint">
             GET{" "}
-            <a className={LINK_CLASS} href="/index.md">
-              /index.md
+            <a className={`${LINK_CLASS} break-all`} href={markdownPath}>
+              {markdownPath}
             </a>{" "}
             · also{" "}
             <a className={LINK_CLASS} href="/llms.txt">
