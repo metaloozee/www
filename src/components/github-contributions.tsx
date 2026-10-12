@@ -107,10 +107,14 @@ export function GitHubContributions({
             data-link={linkId}
             href={profileUrl}
             rel="noopener"
-            style={{ color: "var(--color-phosphor)" }}
+            style={{
+              color: "var(--color-phosphor)",
+              textDecoration: "underline",
+            }}
             target="_blank"
           >
-            GITHUB →<span className="sr-only"> (opens in a new tab)</span>
+            GITHUB <span aria-hidden="true">→</span>
+            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         </span>
         <span

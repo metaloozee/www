@@ -4,7 +4,7 @@
    int10h.org, CC BY-SA 4.0. See public/fonts/LICENSE-oldschool-pc-font-pack.txt */
 @font-face {
   font-family: "IBM VGA 8x16";
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/ibm-vga-8x16.woff") format("woff");
 }
 
