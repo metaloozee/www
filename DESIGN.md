@@ -98,6 +98,26 @@ The last year of activity from `github.com/metaloozee`, on the home screen under
 - **Data:** fetched from the jogruber contributions API, revalidated daily. If it fails, show `ERROR: contribution data unavailable.` in faint.
 - **Agent mode:** a two-line summary (total and busiest day), not the grid.
 
+### Figures and video
+
+Screenshots and clips on project pages. They are the one exception to "emphasis is brightness": a figure keeps its own colours, and the glass still curves, fringes and scans it.
+
+- **Size:** as wide as the measure allows, up to 72 columns (576 font pixels), in whole rows. The file in `public/projects/` is exported at that width; a full-size copy sits beside it.
+- **Frame:** a 1px faint outline, hot while the figure's control has keyboard focus.
+- **Picture:** a faint caption line underneath. Clicking it, or Enter on its control, gives it the whole screen.
+- **Clip:** no caption. One control row underneath: `►` or `▐▐`, a progress bar of cells like the boot bar, `00:12/00:57` in faint, and `[FULL]`. Clicking the picture plays or pauses; clicking the bar seeks.
+- **Full screen:** stays inside the glass. The page and INDEX go; the title and status bars stay. Esc or F leaves, Space plays or pauses a clip, `[FULL]` reads `[EXIT]`.
+- **Source:** the clip is the `<video>` in the DOM copy, drawn to the canvas each frame, so there is one player. Without WebGL that element shows with the browser's controls.
+- **Agent mode:** a picture is a markdown image of the full-size file; a clip is a link to the video file.
+
+### Page changes
+
+One screen serves every page. Moving between the home screen and a project page swaps the content on the lit screen: no boot, no dark frame, no HTML fallback in between. The boot plays once per page load.
+
+### Snake
+
+Switched off with `GAME_ENABLED` in `src/crt/snake.ts`. The code stays; nothing draws it or sends it keys.
+
 ## Accessibility
 
 The canvas is `aria-hidden`. A real DOM copy of `index.md` sits beside it, visually hidden, with the correct headings, links, and landmarks.
