@@ -1,16 +1,21 @@
+import { loadProjects, type Project } from "@/content/projects";
 import {
   type ContributionGrid,
   getContributions,
   toContributionGrid,
 } from "@/lib/github-contributions";
 import type { ScreenDoc } from "./doc";
+import { projectEntry } from "./project-doc";
 
 export const GITHUB_USER = "metaloozee";
 const PROFILE_URL = `https://github.com/${GITHUB_USER}`;
 
 // Site content, kept in step with the Notion portfolio.
 // Replaced by content/index.md once the markdown pipeline lands.
-export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
+export const sampleDoc = (
+  contributions: ContributionGrid,
+  projects: Project[]
+): ScreenDoc => ({
   blocks: [
     { kind: "prompt", text: "C:\\HOME> type about.txt" },
     {
@@ -70,60 +75,7 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
       section: "PROJECTS",
       text: "PROJECTS",
     },
-    {
-      body: "A durable AI coding workspace on the web. Each GitHub repo gets its own sandbox with parallel sessions: isolated git worktrees, resumable agent runs over SSE, and a real commit-to-PR workflow shared by agents and humans. Built on TanStack Start and Cloudflare Workers, D1 and R2. Still in active development.",
-      index: "01",
-      kind: "entry",
-      meta: "AI WORKSPACE",
-      title: { href: "https://github.com/metaloozee/ditto", text: "DITTO" },
-    },
-    {
-      body: "An autonomous SEO and AI-search visibility engine: agents audit, fix, write and publish while people review and approve. Multi-service FastAPI backend, Celery/Redis jobs with Claude and Codex runners, and a Next.js panel. This is what I ship day to day.",
-      index: "02",
-      kind: "entry",
-      meta: "SEO + GEO AGENTS",
-      title: { href: "https://rankmesh.ai", text: "RANKMESH" },
-    },
-    {
-      body: "Self-hostable, open-source AI research and chat app in the spirit of NotebookLM: 6+ LLM providers, RAG research spaces, cross-chat memory, configurable MCP servers, web and academic search, and a versioned artifact workspace.",
-      index: "03",
-      kind: "entry",
-      meta: "AI RESEARCH APP",
-      title: {
-        href: "https://github.com/metaloozee/backpack",
-        text: "BACKPACK",
-      },
-    },
-    {
-      body: "Summarise, verify and chat with any YouTube video using transcripts, Gemini and RAG. Featured by LangChain, with 173 GitHub stars and 100+ active users before YouTube's crawler blocking made it unsustainable.",
-      index: "04",
-      kind: "entry",
-      meta: "WEB APP",
-      title: {
-        href: "https://github.com/metaloozee/quickvid",
-        text: "QUICKVID",
-      },
-    },
-    {
-      body: "College event management for registration, attendance, winners and automatic certificates, built to replace Google Forms and handwritten certificates. Won first prize and was adopted by the college.",
-      index: "05",
-      kind: "entry",
-      meta: "EVENT PLATFORM",
-      title: {
-        href: "https://github.com/metaloozee/certify",
-        text: "CERTIFY",
-      },
-    },
-    {
-      body: "Diploma capstone: a Google Classroom-style learning platform with AI personalization. Third prize at college.",
-      index: "06",
-      kind: "entry",
-      meta: "LEARNING APP",
-      title: {
-        href: "https://github.com/metaloozee/learnify",
-        text: "LEARNIFY",
-      },
-    },
+    ...projects.map(projectEntry),
     { kind: "rule" },
     { kind: "prompt", text: "C:\\HOME> type experience.log" },
     {
@@ -279,4 +231,7 @@ export const sampleDoc = (contributions: ContributionGrid): ScreenDoc => ({
 });
 
 export const loadDoc = async () =>
-  sampleDoc(toContributionGrid(await getContributions(GITHUB_USER)));
+  sampleDoc(
+    toContributionGrid(await getContributions(GITHUB_USER)),
+    await loadProjects()
+  );

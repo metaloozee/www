@@ -58,3 +58,53 @@ export const PROFILE_JSON_LD = {
   name: SITE_TITLE,
   url: SITE_URL,
 };
+
+const PERSON_REF = { "@id": `${SITE_URL}/#person`, name: SITE_NAME };
+
+// schema.org for a project page: the page, its breadcrumb, and the
+// repository when the project is open source.
+export function projectJsonLd({
+  meta,
+  path,
+}: {
+  meta: { description: string; name: string; repo?: string; title: string };
+  path: string;
+}) {
+  const url = `${SITE_URL}${path}`;
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        author: PERSON_REF,
+        breadcrumb: {
+          "@type": "BreadcrumbList",
+          itemListElement: [
+            {
+              "@type": "ListItem",
+              item: SITE_URL,
+              name: SITE_NAME,
+              position: 1,
+            },
+            { "@type": "ListItem", item: url, name: meta.name, position: 2 },
+          ],
+        },
+        description: meta.description,
+        name: meta.title,
+        url,
+      },
+      ...(meta.repo
+        ? [
+            {
+              "@type": "SoftwareSourceCode",
+              author: PERSON_REF,
+              codeRepository: meta.repo,
+              description: meta.description,
+              name: meta.name,
+              url,
+            },
+          ]
+        : []),
+    ],
+  };
+}
