@@ -9,9 +9,8 @@ const SHORT_COPYRIGHT = "(c) Ayan Parkar, 2026.";
 const STEP_WIDTH = 29;
 const BAR_ROWS = 2;
 // Rows under the portrait: gap, title, version, gap, bar, gap, step, gap,
-// prompt, gap, copyright. The prompt row is kept even while empty so
-// nothing shifts when it appears.
-const TEXT_ROWS = 1 + 1 + 1 + 2 + BAR_ROWS + 1 + 1 + 1 + 1 + 2 + 1;
+// copyright.
+const TEXT_ROWS = 1 + 1 + 1 + 2 + BAR_ROWS + 1 + 1 + 2 + 1;
 
 export interface BootStep {
   done: boolean;
@@ -20,8 +19,6 @@ export interface BootStep {
 
 export interface BootFrame {
   filled: number;
-  // Shown once loading is done, while the boot waits for a key press.
-  prompt?: string;
   step: BootStep;
   stepOk: boolean;
 }
@@ -111,10 +108,6 @@ export function drawBoot(
   row += BAR_ROWS + 1;
 
   centred(stepLine(frame), "faint");
-  row += 2;
-  if (frame.prompt) {
-    centred(frame.prompt, "phosphor");
-  }
   row += 3;
   centred(COPYRIGHT.length <= cols ? COPYRIGHT : SHORT_COPYRIGHT, "dim");
 }

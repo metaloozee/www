@@ -27,13 +27,7 @@ import {
 import { dayAt, layoutDoc, linkAtCell, type ScreenLink } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
 import { drawGame, gameRect, SnakeGame, scoreText } from "./snake";
-import {
-  play,
-  soundEnabled,
-  soundUnlocked,
-  subscribeSound,
-  toggleSound,
-} from "./sound";
+import { play, soundEnabled, subscribeSound, toggleSound } from "./sound";
 
 const MEASURE = 72;
 const MIN_MEASURE = 60;
@@ -61,8 +55,6 @@ const PLAYING_STATUS = "↑↓←→ MOVE    ESC QUIT";
 const PLAY_STATUS = "CLICK OR PRESS G TO PLAY";
 // The rest of the screen fades down over this long when a game starts.
 const DIM_MS = 200;
-const KEY_PROMPT = "PRESS ANY KEY TO CONTINUE";
-const TAP_PROMPT = "TAP TO CONTINUE";
 const soundStatus = () =>
   soundEnabled() ? "SOUND ON · CLICK TO MUTE" : "SOUND OFF · CLICK TO UNMUTE";
 const linkStatus = (link?: ScreenLink) => {
@@ -232,7 +224,6 @@ export class CrtController {
   private bootFullAt: number | undefined;
   private bootKey = "";
   private bootOks = 0;
-  private promptAt: number | undefined;
   private offAt: number | undefined;
   private onAt: number | undefined;
   private readonly powerOn: boolean;
@@ -283,7 +274,8 @@ export class CrtController {
   }
 
   // Resolves to null when WebGL2 or 2D canvas is unavailable, so the
-  // caller keeps the HTML copy visible.
+  // caller keeps the HTML copy visible. A software renderer counts as
+  // unavailable: it spends seconds of main thread on every shader frame.
   static async mount(
     glass: HTMLElement,
     canvas: HTMLCanvasElement,
@@ -331,11 +323,6 @@ export class CrtController {
 
   private endBoot() {
     if (this.booting) {
-      // The press that unlocked audio gets the beep the full bar played
-      // silently.
-      if (this.promptAt !== undefined) {
-        play("beep");
-      }
       this.booting = false;
       this.dirty = true;
     }
@@ -380,30 +367,16 @@ export class CrtController {
     if (frame.filled === BOOT_CELLS) {
       this.bootFullAt ??= now;
       if (now - this.bootFullAt >= BOOT_HOLD_MS) {
-        if (!this.needsKey()) {
-          this.endBoot();
-          return;
-        }
-        this.promptAt ??= now;
-        const prompt = matchMedia("(hover: none)").matches
-          ? TAP_PROMPT
-          : KEY_PROMPT;
-        frame.prompt = `${prompt}${this.state.cursorOn ? "_" : " "}`;
+        this.endBoot();
+        return;
       }
     }
-    const key = `${frame.filled} ${stepLine(frame)} ${frame.prompt ?? ""}`;
+    const key = `${frame.filled} ${stepLine(frame)}`;
     if (key !== this.bootKey) {
       this.bootKey = key;
       this.dirty = true;
     }
     return frame;
-  }
-
-  // Browsers hold audio until a click or key press, so a first visit
-  // waits for one before leaving the boot screen. A return from agent mode
-  // was itself a click.
-  private needsKey() {
-    return !(this.powerOn || soundUnlocked()) && soundEnabled();
   }
 
   // Plays the power-off collapse, then hands over to agent mode. Reduced
