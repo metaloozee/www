@@ -1,30 +1,34 @@
 import type { Metadata, Viewport } from "next";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
-const DESCRIPTION =
-  "Ayan Parkar, a programmer from Mumbai, India, working on full-stack development and AI.";
-
 export const metadata: Metadata = {
-  authors: [{ name: "Ayan Parkar", url: "https://github.com/metaloozee" }],
-  creator: "Ayan Parkar",
-  description: DESCRIPTION,
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  metadataBase: new URL(SITE_URL),
   openGraph: {
-    description: DESCRIPTION,
+    description: SITE_DESCRIPTION,
     locale: "en_US",
-    siteName: "Ayan Parkar",
-    title: "Ayan Parkar",
-    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    type: "profile",
+    url: "/",
+  },
+  robots: {
+    follow: true,
+    googleBot: { "max-image-preview": "large", "max-snippet": -1 },
+    index: true,
   },
   title: {
-    default: "Ayan Parkar",
-    template: "%s | Ayan Parkar",
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
   },
   twitter: {
     card: "summary_large_image",
     creator: "@metaloozee",
-    description: DESCRIPTION,
-    title: "Ayan Parkar",
+    description: SITE_DESCRIPTION,
+    title: SITE_TITLE,
   },
 };
 
@@ -47,9 +51,7 @@ export default function RootLayout({
           type="font/woff"
         />
       </head>
-      <body>
-        <NuqsAdapter>{children}</NuqsAdapter>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
