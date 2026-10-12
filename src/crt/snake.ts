@@ -87,6 +87,10 @@ export interface GameRect {
   rows: number;
 }
 
+// The game is switched off, not removed: with no panel it is never drawn,
+// started or sent a key. Set to true to bring it back.
+const GAME_ENABLED: boolean = false;
+
 // The panel needs the INDEX column and room under its entries; without
 // them there is no game, full screen or not.
 export function gameRect(
@@ -94,7 +98,7 @@ export function gameRect(
   sections: number,
   full: boolean
 ): GameRect | undefined {
-  if (!grid.index) {
+  if (!(GAME_ENABLED && grid.index)) {
     return;
   }
   const top = INDEX_TOP + sections + 2;
