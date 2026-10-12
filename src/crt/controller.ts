@@ -46,10 +46,11 @@ const BLINK_MS = 530;
 const INDEX_WIDTH = 28;
 const INDEX_GAP = 4;
 const TYPING_TAGS = /^(INPUT|TEXTAREA|SELECT)$/;
+const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software|basic render/i;
 const PORTRAIT_URL = "/boot/portrait.png";
 // The bar fills over BOOT_MS unless loading is slower, then holds full.
-const BOOT_MS = 1800;
-const BOOT_HOLD_MS = 400;
+const BOOT_MS = 900;
+const BOOT_HOLD_MS = 250;
 const POWER_MS = 400;
 // Lets the click sound start before the new tab takes focus.
 const LINK_OPEN_DELAY_MS = 40;
@@ -102,6 +103,16 @@ function readTokens() {
     phosphor: token("phosphor"),
   };
   return { palette, tube: token("tube") };
+}
+
+// CPU rasterisers (headless Chrome, VMs, blocklisted GPUs) that
+// failIfMajorPerformanceCaveat does not always catch.
+function isSoftwareGl(gl: WebGL2RenderingContext) {
+  const info = gl.getExtension("WEBGL_debug_renderer_info");
+  const renderer: unknown = gl.getParameter(
+    info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER
+  );
+  return SOFTWARE_GL.test(String(renderer));
 }
 
 const isTyping = (target: EventTarget | null) =>
@@ -280,9 +291,13 @@ export class CrtController {
     doc: ScreenDoc,
     options: MountOptions
   ): Promise<CrtController | null> {
-    const gl = canvas.getContext("webgl2", { alpha: false, antialias: false });
+    const gl = canvas.getContext("webgl2", {
+      alpha: false,
+      antialias: false,
+      failIfMajorPerformanceCaveat: true,
+    });
     const ctx = document.createElement("canvas").getContext("2d");
-    if (!(gl && ctx)) {
+    if (!(gl && ctx) || isSoftwareGl(gl)) {
       return null;
     }
     await document.fonts.load(`${CELL_H}px "${FONT_FAMILY}"`);
