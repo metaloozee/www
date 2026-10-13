@@ -339,6 +339,10 @@ export class CrtController {
       return null;
     }
     await document.fonts.load(`${CELL_H}px "${FONT_FAMILY}"`);
+    // Lost while the font loaded, before start() listens for it.
+    if (gl.isContextLost()) {
+      return null;
+    }
     const controller = new CrtController(
       glass,
       canvas,
@@ -567,6 +571,7 @@ export class CrtController {
     clearTimeout(this.handover);
     cancelAnimationFrame(this.frameId);
     this.unbind();
+    this.canvas.removeEventListener("webglcontextlost", this.loseContext);
     this.canvas.remove();
     running -= 1;
   }
@@ -1046,7 +1051,8 @@ export class CrtController {
       play("tick");
       // A picture's link opens the file where there is no screen; here
       // the picture takes the screen instead.
-      const link = this.screen.layout.links[Number(control.dataset.link)];
+      const link: ScreenLink | undefined =
+        this.screen.layout.links[Number(control.dataset.link)];
       if (control instanceof HTMLAnchorElement && link?.figure) {
         event.preventDefault();
         this.toggleFullFigure(link.figure);
