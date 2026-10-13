@@ -5,9 +5,17 @@ const WANTS_MARKDOWN = [
   { key: "accept", type: "header", value: "(.*)text/markdown(.*)" },
 ];
 
+// These URLs answer with HTML or markdown depending on Accept, so a
+// shared cache must key on it. Next adds its own Vary fields to the
+// markdown answer; on a prerendered page under `next start` it replaces
+// the header, and this one is lost.
+const NEGOTIATED = [{ key: "Vary", value: "Accept" }];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: () => [
+    { headers: NEGOTIATED, source: "/" },
+    { headers: NEGOTIATED, source: "/projects/:slug" },
     {
       // Markdown copies of the pages: readable by agents, kept out of
       // search results so they don't compete with them.
