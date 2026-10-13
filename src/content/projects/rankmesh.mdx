@@ -1,0 +1,53 @@
+export const metadata = {
+  name: "RankMesh",
+  kind: "SEO + GEO AGENTS",
+  title: "RankMesh: building an autonomous SEO and GEO agent engine",
+  description:
+    "How Ayan Parkar builds RankMesh as an AI Engineer Intern: a multi-service FastAPI backend, Celery/Redis agent runs with Claude and Codex, and a Next.js panel where people review what agents ship.",
+  summary:
+    "An autonomous SEO and AI-search visibility engine: agents audit, fix, write and publish while people review and approve. Multi-service FastAPI backend, Celery/Redis jobs with Claude and Codex runners, and a Next.js panel. This is what I ship day to day.",
+  site: "https://rankmesh.ai",
+};
+
+# RankMesh
+
+RankMesh automates SEO and AI-search visibility. Agents do the execution: they audit, fix, write, and publish. People stay in review and approve.
+
+- **Type:** Autonomous SEO and GEO engine
+- **Role:** AI Engineer Intern at Ocavior, May 2026 to present
+- **Stack:** FastAPI, Celery/Redis, LangChain, Next.js, PostgreSQL, R2
+- **Site:** [rankmesh.ai](https://rankmesh.ai)
+
+<Figure
+  src="/projects/rankmesh-meshy.webp"
+  full="/projects/rankmesh-meshy-full.webp"
+  alt="RankMesh panel with the Meshy chat prompt and the work areas sidebar: Discover, Create, Manage, Measure"
+  caption="Meshy, the chat operator."
+/>
+
+## Architecture
+
+The backend is multi-service FastAPI: an orchestrator for projects, RAG, blogs, SEO, marketing, scheduling, and billing, plus specialist agents for SEO/GEO, prompts, and posts. Long jobs run on Celery/Redis with Claude and Codex runners. The panel is Next.js with client and manager workspaces and Meshy as the chat operator.
+
+<Figure
+  src="/projects/rankmesh-seo.webp"
+  full="/projects/rankmesh-seo-full.webp"
+  alt="RankMesh SEO audit of a site: an overall score, a breakdown by category, and counts of critical, warning and passing checks"
+  caption="An SEO audit in the panel."
+/>
+
+## What I built
+
+I've worked almost entirely inside this product, on both the agent backend and the panel operators use. This is what I ship day to day.
+
+- Shipped across the FastAPI multi-service backend: project auth, ingestion and RAG routing, blogs, SEO, marketing workflows, scheduling, credits, billing, and activity feeds.
+- Built and hardened Celery/Redis autonomous execution with Claude and Codex runners, capacity leases, audit to fix-plan to schedule, and manager pause/resume/cancel.
+- Owned large slices of the Next.js panel rewrite: client and manager workspaces, Meshy project chat with SSE, Discover and Manage SEO, admin tooling, and the performance work that kept data-heavy polls usable as agent output grew.
+- Wired Search Console, Analytics, Firecrawl, CMS and GitHub publish gates, R2 storage, and review-first content release.
+
+<Figure
+  src="/projects/rankmesh-activity.webp"
+  full="/projects/rankmesh-activity-full.webp"
+  alt="RankMesh activity feed: agent runs grouped into needs a decision, in progress and completed"
+  caption="The activity feed of agent runs."
+/>

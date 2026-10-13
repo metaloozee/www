@@ -1,71 +1,57 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
-import { GeistSans } from "geist/font/sans";
-import { NuqsAdapter } from "nuqs/adapters/next/app";
-import { ThemeProvider } from "@/components/theme-provider";
-
 export const metadata: Metadata = {
-  authors: [{ name: "Ayan", url: "https://github.com/metaloozee" }],
-  creator: "Ayan",
-  description:
-    "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
-  keywords: [
-    "Ayan",
-    "Full-Stack Developer",
-    "AI",
-    "Machine Learning",
-    "Web Development",
-    "React",
-    "Next.js",
-  ],
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  metadataBase: new URL(SITE_URL),
   openGraph: {
-    description:
-      "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
+    description: SITE_DESCRIPTION,
     locale: "en_US",
-    siteName: "Ayan's Portfolio",
-    title: "Ayan | Full-Stack Developer & AI Enthusiast",
-    type: "website",
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    type: "profile",
+    url: "/",
   },
   robots: {
     follow: true,
+    googleBot: { "max-image-preview": "large", "max-snippet": -1 },
     index: true,
   },
   title: {
-    default: "Ayan | Full-Stack Developer & AI Enthusiast",
-    template: "%s | Ayan",
+    default: SITE_TITLE,
+    template: `%s | ${SITE_NAME}`,
   },
   twitter: {
     card: "summary_large_image",
     creator: "@metaloozee",
-    description:
-      "I'm Ayan, a 20-year-old computer science student from Mumbai, India. Passionate about full-stack development and artificial intelligence.",
-    title: "Ayan | Full-Stack Developer & AI Enthusiast",
+    description: SITE_DESCRIPTION,
+    title: SITE_TITLE,
   },
+};
+
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#08090b",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <head>
-        <meta content="#0a0a0a" name="theme-color" />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/ibm-vga-8x16.woff"
+          rel="preload"
+          type="font/woff"
+        />
       </head>
-      <body className={GeistSans.className}>
-        <NuqsAdapter>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            disableTransitionOnChange
-            enableSystem
-          >
-            <main>{children}</main>
-          </ThemeProvider>
-        </NuqsAdapter>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
