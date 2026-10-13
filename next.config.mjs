@@ -11,15 +11,29 @@ const WANTS_MARKDOWN = [
 // the header, and this one is lost.
 const NEGOTIATED = [{ key: "Vary", value: "Accept" }];
 
+// Markdown copies stay out of search results so they don't compete with
+// the pages.
+const NOINDEX = [{ key: "X-Robots-Tag", value: "noindex" }];
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   headers: () => [
     { headers: NEGOTIATED, source: "/" },
     { headers: NEGOTIATED, source: "/projects/:slug" },
     {
-      // Markdown copies of the pages: readable by agents, kept out of
-      // search results so they don't compete with them.
-      headers: [{ key: "X-Robots-Tag", value: "noindex" }],
+      // The same markdown, asked for with Accept on the page's own URL.
+      has: WANTS_MARKDOWN,
+      headers: NOINDEX,
+      source: "/",
+    },
+    {
+      has: WANTS_MARKDOWN,
+      headers: NOINDEX,
+      source: "/projects/:slug",
+    },
+    {
+      // Markdown copies of the pages, readable by agents.
+      headers: NOINDEX,
       source: "/:path*/:file(index\\.md|llms\\.txt)",
     },
   ],
