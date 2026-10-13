@@ -1,4 +1,5 @@
-export const SITE_URL = "https://ayn.wtf";
+// The apex redirects to www, so every absolute URL uses the www host.
+export const SITE_URL = "https://www.ayn.wtf";
 export const SITE_NAME = "Ayan Parkar";
 export const SITE_TITLE =
   "Ayan Parkar — AI Engineer & Full-Stack Developer, Mumbai";
