@@ -167,6 +167,9 @@ function fitGrid(width: number, height: number) {
 
 export interface MountOptions {
   onAgent: () => void;
+  // The GPU dropped the picture; the owner shows the HTML copy and
+  // releases the screen.
+  onLost: () => void;
   // A link into this site was activated; the owner routes to it.
   onNavigate: (href: string) => void;
   // A role title was clicked on the glass; the owner flips it and calls
@@ -217,6 +220,8 @@ export class CrtController {
   private readonly canvas: HTMLCanvasElement;
   private doc: ScreenDoc;
   private onAgent: () => void;
+  private onLost: () => void;
+  private lost: boolean;
   private onToggle: (block: number) => void;
   private onNavigate: (href: string) => void;
   private open: OpenRoles = new Set();
@@ -273,10 +278,12 @@ export class CrtController {
     gl: WebGL2RenderingContext,
     ctx: CanvasRenderingContext2D,
     doc: ScreenDoc,
-    { onAgent, onNavigate, onToggle, powerOn }: MountOptions
+    { onAgent, onLost, onNavigate, onToggle, powerOn }: MountOptions
   ) {
     this.glass = glass;
     this.onAgent = onAgent;
+    this.onLost = onLost;
+    this.lost = false;
     this.onToggle = onToggle;
     this.onNavigate = onNavigate;
     this.powerOn = powerOn;
@@ -355,13 +362,14 @@ export class CrtController {
     host: HTMLElement,
     copy: HTMLElement,
     doc: ScreenDoc,
-    { onAgent, onNavigate, onToggle }: MountOptions
+    { onAgent, onLost, onNavigate, onToggle }: MountOptions
   ) {
     clearTimeout(this.handover);
     this.glass = glass;
     this.copy = copy;
     this.doc = doc;
     this.onAgent = onAgent;
+    this.onLost = onLost;
     this.onNavigate = onNavigate;
     this.onToggle = onToggle;
     host.append(this.canvas);
@@ -387,10 +395,11 @@ export class CrtController {
   }
 
   // The page is going away. The screen stays lit for the next page to
-  // adopt; if none does, or the power-off already played, it is disposed.
+  // adopt; if none does, or the power-off already played, or the picture
+  // is lost, it is disposed.
   release() {
     this.unbind();
-    if (this.offAt !== undefined) {
+    if (this.lost || this.offAt !== undefined) {
       this.dispose();
       return;
     }
@@ -403,6 +412,19 @@ export class CrtController {
       this.dispose();
     }, HANDOVER_MS);
   }
+
+  // A lost WebGL context draws nothing more. It is not restored: the page
+  // falls back to its HTML copy, and the next page mounts a new screen.
+  private readonly loseContext = () => {
+    this.lost = true;
+    cancelAnimationFrame(this.frameId);
+    if (waiting === this) {
+      waiting = undefined;
+      this.dispose();
+      return;
+    }
+    this.onLost();
+  };
 
   private loadPortrait() {
     const image = new Image();
@@ -692,6 +714,9 @@ export class CrtController {
 
   private start() {
     running += 1;
+    this.canvas.addEventListener("webglcontextlost", this.loseContext, {
+      once: true,
+    });
     this.bind();
     this.startedAt = performance.now();
     this.bootAt = this.startedAt;

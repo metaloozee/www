@@ -82,7 +82,7 @@ A single fragment shader runs as a post-process over the canvas texture. Startin
 
 **Reduced motion:** no noise animation, rolling band, or flicker; the boot sequence shows the finished frame immediately. Curvature, fringing, and bloom stay.
 
-**Fallback when WebGL is missing:** the hidden DOM copy becomes visible and gets the colour tokens and VGA font, with no glass.
+**Fallback when WebGL is missing:** the hidden DOM copy becomes visible and gets the colour tokens and VGA font, with no glass. The same happens if the WebGL context is lost while the screen is lit; the context is not restored, and the next page mounts a new screen.
 
 ## Components
 

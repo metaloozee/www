@@ -53,6 +53,12 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
   );
   const [powerOn] = useState(returning ?? false);
   const handOver = useEffectEvent(onAgent);
+  // The GPU dropped the picture after mount: show the HTML copy instead.
+  const lose = useEffectEvent(() => {
+    controllerRef.current?.release();
+    controllerRef.current = null;
+    setLive(false);
+  });
   const router = useRouter();
   const navigate = useEffectEvent((href: string) => router.push(href));
   const [open, setOpen] = useState<OpenRoles>(new Set());
@@ -97,6 +103,7 @@ export function CrtScreen({ doc, onAgent, returning }: CrtScreenProps) {
     let disposed = false;
     CrtController.mount(glass, host, copy, doc, {
       onAgent: () => handOver(),
+      onLost: () => lose(),
       onNavigate: (href) => navigate(href),
       onToggle: toggleRole,
       powerOn,
