@@ -27,7 +27,7 @@ export const sampleDoc = (
       kind: "paragraph",
       spans: [
         {
-          text: "I'm Ayan Parkar, a final-year computer engineering student in Mumbai and an AI Engineer Intern at RankMesh, where I work on multi-agent systems in production. I've been coding since 2020: I started out designing graphics for e-sports teams, got hooked building Spades, a Discord security bot that reached 100+ servers and 100K+ users, and now ship full-stack products, open-source fixes and public AI apps.",
+          text: "I'm a final-year computer engineering student in Mumbai and an AI Engineer Intern at RankMesh, where I work on multi-agent systems in production. I've been coding since 2020: I started out designing graphics for e-sports teams, got hooked building Spades, a Discord security bot that reached 100+ servers and 100K+ users, and now ship full-stack products, open-source fixes and public AI apps.",
         },
       ],
     },
