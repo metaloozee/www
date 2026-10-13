@@ -37,7 +37,6 @@ import {
   transportAt,
 } from "./layout";
 import { barrel, CrtRenderer, type Rgb } from "./shader";
-import { drawGame, gameRect, SnakeGame, scoreText } from "./snake";
 import { play, soundEnabled, subscribeSound, toggleSound } from "./sound";
 
 const MEASURE = 72;
@@ -62,10 +61,6 @@ const LINK_OPEN_DELAY_MS = 40;
 // Sweeping the pointer across several links ticks at most this often.
 const HOVER_SOUND_GAP_MS = 60;
 const AGENT_STATUS = "SWITCH TO AGENT VIEW";
-const PLAYING_STATUS = "↑↓←→ MOVE    ESC QUIT";
-const PLAY_STATUS = "CLICK OR PRESS G TO PLAY";
-// The rest of the screen fades down over this long when a game starts.
-const DIM_MS = 200;
 const soundStatus = () =>
   soundEnabled() ? "SOUND ON · CLICK TO MUTE" : "SOUND OFF · CLICK TO UNMUTE";
 const linkStatus = (link?: ScreenLink) => {
@@ -199,7 +194,6 @@ type Target =
   | { sound: true }
   | { link: number }
   | { section: number }
-  | { game: true }
   // Part of a figure: its picture, or a control in a clip's row.
   | FigureHit
   | { day: ContributionDay; index: number };
@@ -264,11 +258,6 @@ export class CrtController {
   private readonly powerOn: boolean;
   private powerOnPlayed = false;
   private hoverSoundAt = 0;
-  private readonly game = new SnakeGame();
-  private gameHover = false;
-  private wasPlaying = false;
-  private dim = 0;
-  private frameAt = 0;
   private portrait: HTMLImageElement | undefined;
   private readonly bootSteps: BootStep[] = [
     // mount() waits for the font before the controller exists.
@@ -379,7 +368,6 @@ export class CrtController {
     Object.assign(this.state, {
       day: undefined,
       focus: undefined,
-      full: false,
       fullFigure: undefined,
       hover: undefined,
       hoverSection: undefined,
@@ -743,112 +731,7 @@ export class CrtController {
     this.text.width = grid.cols * CELL_W;
     this.text.height = grid.rows * CELL_H;
     this.scrollTo(this.state.scroll);
-    // Full screen is entered from the panel, so it goes when the panel does.
-    if (!this.gameRect()) {
-      this.state.full = false;
-    }
-    this.sizeGame();
     this.dirty = true;
-  }
-
-  private gameRect() {
-    const { grid, layout } = this.screen;
-    return gameRect(grid, layout.sections.length, this.state.full ?? false);
-  }
-
-  private sizeGame() {
-    const rect = this.gameRect();
-    if (rect) {
-      this.game.resize(
-        (rect.cols * CELL_W) / rect.cell,
-        (rect.rows * CELL_H) / rect.cell
-      );
-    }
-  }
-
-  // Reached only by the F key. The field changes size, so a game in
-  // progress ends.
-  private toggleFull() {
-    this.state.full = !this.state.full;
-    this.game.quit();
-    this.sizeGame();
-    this.dirty = true;
-    play("tick");
-  }
-
-  private gameTargetAt(row: number, col: number): Target | undefined {
-    const rect = this.gameRect();
-    if (!rect) {
-      return;
-    }
-    const inField =
-      row >= rect.row &&
-      row < rect.row + rect.rows &&
-      col >= rect.col &&
-      col < rect.col + rect.cols;
-    return inField && !this.game.active ? { game: true } : undefined;
-  }
-
-  // True when the game took the key. A game on screen takes every key, so
-  // none of them scrolls the dimmed page.
-  private gameKey(event: KeyboardEvent) {
-    if (!this.gameRect()) {
-      return false;
-    }
-    const key = event.key.toLowerCase();
-    if (this.game.active) {
-      if (key === "escape") {
-        this.game.quit();
-      } else {
-        this.game.turn(key);
-      }
-      return key !== "tab";
-    }
-    if (key === "g") {
-      this.game.start();
-      return true;
-    }
-    if (key === "f" || (key === "escape" && this.state.full)) {
-      this.toggleFull();
-      return true;
-    }
-    // The page is hidden in full screen; scrolling it would be invisible.
-    return Boolean(this.state.full) && event.key in SCROLL_KEYS;
-  }
-
-  private playingStatus() {
-    return this.game.playing
-      ? `${PLAYING_STATUS}    SCORE ${scoreText(this.game.score)}`
-      : undefined;
-  }
-
-  private updateGame(now: number, motion: boolean) {
-    if (!this.gameRect()) {
-      return;
-    }
-    if (this.game.update(now, motion)) {
-      this.dirty = true;
-    }
-    // The score rides in the status bar, so it follows every point.
-    const { playing } = this.game;
-    const status = this.playingStatus();
-    if (
-      playing !== this.wasPlaying ||
-      (playing && status !== this.state.status)
-    ) {
-      this.wasPlaying = playing;
-      this.state.status = status;
-      this.dirty = true;
-    }
-    const target = this.game.active ? 1 : 0;
-    if (this.dim !== target) {
-      const step = motion ? (now - this.frameAt) / DIM_MS : 1;
-      this.dim =
-        target > this.dim
-          ? Math.min(1, this.dim + step)
-          : Math.max(0, this.dim - step);
-      this.dirty = true;
-    }
   }
 
   private scrollTo(row: number) {
@@ -901,11 +784,6 @@ export class CrtController {
     if (this.state.fullFigure !== undefined) {
       return this.fullTargetAt(row, col);
     }
-    const game = this.gameTargetAt(row, col);
-    // Behind a game or full screen, nothing else on the page responds.
-    if (game || this.game.active || this.state.full) {
-      return game;
-    }
     const section = sectionAt(this.screen, row, col);
     if (section !== undefined) {
       return { section };
@@ -948,9 +826,6 @@ export class CrtController {
       const { label } = this.screen.layout.sections[target.section] ?? {};
       return `JUMP TO ${label ?? ""}`;
     }
-    if ("game" in target) {
-      return PLAY_STATUS;
-    }
     if ("figure" in target) {
       return this.figureStatus(target);
     }
@@ -963,7 +838,6 @@ export class CrtController {
     const day = target && "day" in target ? target.index : undefined;
     const mode = target !== undefined && "mode" in target;
     const sound = target !== undefined && "sound" in target;
-    const game = target !== undefined && "game" in target;
     const figure =
       target && "figure" in target
         ? `${target.figure.src} ${target.part}`
@@ -971,7 +845,6 @@ export class CrtController {
     const { state } = this;
     if (
       figure === this.figureHover &&
-      game === this.gameHover &&
       link === state.hover &&
       section === state.hoverSection &&
       day === state.day &&
@@ -985,14 +858,12 @@ export class CrtController {
     state.day = day;
     state.modeHover = mode;
     state.soundHover = sound;
-    this.gameHover = game;
     this.figureHover = figure;
-    state.status = this.statusFor(target) ?? this.playingStatus();
+    state.status = this.statusFor(target);
     const clickable =
       link !== undefined ||
       section !== undefined ||
       figure !== undefined ||
-      game ||
       mode ||
       sound;
     this.canvas.style.cursor = clickable ? "pointer" : "default";
@@ -1015,11 +886,6 @@ export class CrtController {
     }
     if ("sound" in target) {
       toggleSound();
-      return;
-    }
-    if ("game" in target) {
-      this.game.start();
-      this.setHover(undefined);
       return;
     }
     play("tick");
@@ -1066,8 +932,7 @@ export class CrtController {
       "wheel",
       (event) => {
         event.preventDefault();
-        const held = this.state.full || this.state.fullFigure !== undefined;
-        if (this.game.active || held) {
+        if (this.state.fullFigure !== undefined) {
           return;
         }
         const lineMode = event.deltaMode === 1;
@@ -1169,7 +1034,7 @@ export class CrtController {
       if (modified || isTyping(event.target)) {
         return;
       }
-      if (this.figureKey(event) || this.gameKey(event)) {
+      if (this.figureKey(event)) {
         event.preventDefault();
         this.dirty = true;
         return;
@@ -1252,10 +1117,6 @@ export class CrtController {
     }
     const off = this.powerLevel(now);
     const boot = this.booting ? this.updateBoot(now, motion) : undefined;
-    if (!boot) {
-      this.updateGame(now, motion);
-    }
-    this.frameAt = now;
     // A playing clip has a new frame, and a new position, every tick.
     for (const video of this.screen.videos.values()) {
       if (isPlaying(video)) {
@@ -1276,15 +1137,6 @@ export class CrtController {
         );
       } else {
         drawScreen(this.ctx, screen, this.state);
-        const rect = this.gameRect();
-        if (rect) {
-          drawGame(this.ctx, screen, this.game, {
-            dim: this.dim,
-            full: this.state.full ?? false,
-            hover: this.gameHover,
-            rect,
-          });
-        }
       }
       this.renderer.upload(this.text);
     }

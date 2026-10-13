@@ -32,9 +32,8 @@ export interface ScreenState {
   // Index into the contribution days under the pointer.
   day?: number;
   focus?: number;
-  // The game has the whole screen: the page and INDEX are not drawn.
-  full?: boolean;
-  // Src of the figure that has the whole screen, likewise.
+  // Src of the figure that has the whole screen: the page and INDEX are
+  // not drawn.
   fullFigure?: string;
   hover?: number;
   hoverSection?: number;
@@ -60,7 +59,6 @@ export interface Screen {
 
 const HINTS = "↑↓ SCROLL    TAB LINKS    ENTER OPEN";
 const SHORT_HINTS = "↑↓ SCROLL";
-const FULL_HINTS = "G PLAY    F EXIT FULL SCREEN";
 const CLIP_HINTS = "SPACE PLAY/PAUSE    ESC EXIT FULL SCREEN";
 const PICTURE_HINTS = "ESC EXIT FULL SCREEN";
 const DAY_SQUARE = 6;
@@ -515,13 +513,12 @@ function drawBars(
     state.fullFigure === undefined
       ? undefined
       : figureBySrc(screen.layout, state.fullFigure);
-  const position =
-    state.full || shown
-      ? ""
-      : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
+  const position = shown
+    ? ""
+    : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
   const room = grid.cols - position.length - 3;
   const pageHints = HINTS.length <= room ? HINTS : SHORT_HINTS;
-  let hints = state.full ? FULL_HINTS : pageHints;
+  let hints = pageHints;
   if (shown) {
     hints = shown.video ? CLIP_HINTS : PICTURE_HINTS;
   }
@@ -544,7 +541,7 @@ export function drawScreen(
       : figureBySrc(screen.layout, state.fullFigure);
   if (shown) {
     drawFigure(ctx, screen, state, shown, fullRect(screen.grid, shown));
-  } else if (!state.full) {
+  } else {
     drawContent(ctx, screen, state);
     drawIndex(ctx, screen, state);
   }

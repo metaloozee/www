@@ -114,10 +114,6 @@ Screenshots and clips on project pages. They are the one exception to "emphasis 
 
 One screen serves every page. Moving between the home screen and a project page swaps the content on the lit screen: no boot, no dark frame, no HTML fallback in between. The boot plays once per page load.
 
-### Snake
-
-Switched off with `GAME_ENABLED` in `src/crt/snake.ts`. The code stays; nothing draws it or sends it keys.
-
 ## Accessibility
 
 The canvas is `aria-hidden`. A real DOM copy of `index.md` sits beside it, visually hidden, with the correct headings, links, and landmarks.
