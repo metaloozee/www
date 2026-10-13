@@ -11,7 +11,7 @@ export const metadata = {
 
 # Backpack
 
-Backpack is a self-hostable multi-model AI research and chat app: 6+ LLM providers, RAG research spaces, cross-chat memory, configurable MCP servers, and a versioned artifact workspace.
+Backpack is an open-source AI research and chat app you can host yourself. It talks to models from six providers, keeps your sources in research spaces it can search, remembers things across chats, and writes long documents into a versioned workspace beside the conversation.
 
 - **Type:** Open-source AI research and chat app
 - **Stack:** TypeScript, Postgres, Redis, RAG, MCP
@@ -30,3 +30,29 @@ Backpack is a self-hostable multi-model AI research and chat app: 6+ LLM provide
 I built Backpack to survive jumping into second-year engineering with a month until finals. It was the hardest thing I'd shipped yet.
 
 It grew into an open-source NotebookLM-style tool with web and academic search, plus DeepResearch via [rsrch.tech](https://github.com/metaloozee/rsrch.tech).
+
+## Models
+
+Backpack isn't tied to one vendor. The model picker covers Google, Anthropic, OpenAI, Groq, OpenRouter and Cloudflare Workers AI, and you only need credentials for the ones you turn on.
+
+## Spaces and knowledge
+
+A Space is a research workspace for one topic or project. It groups your chats with the documents and web pages you add to it.
+
+When you add a source, a background job pulls out the text, running PDFs through OCR. It splits the text into 250-word chunks, embeds them and stores the vectors in Postgres. The assistant then searches your material and answers from it.
+
+## Memory and tools
+
+A Memory is a fact or preference Backpack saves and recalls in later chats, so you don't repeat yourself in every new conversation.
+
+The assistant has tools for web search, academic search, finance search, page extraction and searching your own knowledge. You can also plug in your own MCP servers, and their tools show up alongside the built-in ones.
+
+## Artifacts
+
+Long answers don't belong in a chat bubble. Backpack writes them into an artifact, a document that opens next to the conversation.
+
+Every save is an immutable version. You can edit the text by hand, ask the assistant for a targeted edit or a full rewrite, compare two versions and restore an old one.
+
+## Running it yourself
+
+You need Bun, a Postgres-compatible database and Redis. Copy the example env file, fill in the providers you want, run the migrations and start the dev server.

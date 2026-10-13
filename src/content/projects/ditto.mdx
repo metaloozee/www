@@ -11,7 +11,7 @@ export const metadata = {
 
 # Ditto
 
-Ditto is a durable AI coding workspace on the web. Each GitHub repo gets its own sandbox with parallel sessions: isolated git worktrees, resumable agent runs over SSE, a tRPC control plane, and D1/R2-backed state. Agents and humans share a real commit-to-PR workflow instead of throwaway generations.
+Ditto is a durable AI coding workspace on the web. You sign in with GitHub, import a repository, and Ditto gives it a cloud sandbox of its own. Open as many conversations as you like, ask an agent to read or change the code, and take the result out as commits, a pushed branch and a pull request.
 
 - **Type:** AI coding workspace
 - **Stack:** TanStack Start, Cloudflare Workers, D1, R2, Sandbox SDK
@@ -25,3 +25,33 @@ Ditto is a durable AI coding workspace on the web. Each GitHub repo gets its own
   alt="Ditto home screen: a list of projects, each with its conversation count and status"
   caption="Ditto preview."
 />
+
+## How it stays durable
+
+A Cloudflare sandbox goes to sleep when nobody is using it, and its disk goes with it. Ditto backs up the whole workspace to R2 after every completed agent run and restores it the next time the project wakes.
+
+Each backup carries a generation number, so a slow older snapshot can never overwrite a newer one. Chat history lives in D1, apart from the sandbox. You can read an old conversation while the sandbox is still restoring.
+
+## Parallel sessions
+
+Every conversation gets its own git worktree on its own branch. Two agents can edit the same repo at once without touching each other's files. The worktrees share one node_modules folder through a symlink, so a new session doesn't reinstall dependencies.
+
+A new session branches from whatever is pushed to GitHub at that moment. Commits that only exist on your laptop are invisible to it.
+
+## Inside a run
+
+The browser posts your message to a Worker and reads the reply as Server-Sent Events. The Worker wakes the sandbox, opens a shell in the session's worktree and starts a runner that drives the agent. Text and tool calls stream back in the order they happened.
+
+You can send a follow-up or press Stop mid-run. Both reach the same live agent session over a Unix socket instead of starting a new job. Closing the tab only detaches the stream. The run carries on and the Worker still saves the answer.
+
+You bring your own model provider. There is one free fallback model for accounts that haven't connected one.
+
+## Secrets
+
+An agent that can run shell commands can read its own environment, so I treat the sandbox as a place secrets leak from. Project environment variables sit encrypted in D1. The Worker decrypts them per run and injects them into the shell. No .env file is ever written into a worktree.
+
+The agent never holds a GitHub credential either. To push a branch or open a pull request it calls back to the Worker with a short-lived signed token, and the Worker does the work with a GitHub App installation token.
+
+## Not done yet
+
+Ditto is still in development. Every session in a project shares one container, and nothing limits how many agent runs a project can start at once yet.

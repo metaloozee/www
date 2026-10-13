@@ -3,15 +3,15 @@ export const metadata = {
   kind: "WEB APP",
   title: "QuickVid: summarize, verify and chat with YouTube videos",
   description:
-    "QuickVid by Ayan Parkar summarized, fact-checked and answered questions about any YouTube video with transcripts, Gemini and RAG. Featured by LangChain, 173 GitHub stars.",
+    "QuickVid by Ayan Parkar summarized, fact-checked and answered questions about any YouTube video with transcripts, Gemini and RAG. Featured by LangChain, 174 GitHub stars.",
   summary:
-    "Summarise, verify and chat with any YouTube video using transcripts, Gemini and RAG. Featured by LangChain, with 173 GitHub stars and 100+ active users before YouTube's crawler blocking made it unsustainable.",
+    "Summarise, verify and chat with any YouTube video using transcripts, Gemini and RAG. Featured by LangChain, with 174 GitHub stars and 100+ active users before YouTube's crawler blocking made it unsustainable.",
   repo: "https://github.com/metaloozee/quickvid",
 };
 
 # QuickVid
 
-Summarize, verify, and chat with any YouTube video.
+Summarize, verify, and chat with any YouTube video. You paste a link and get a summary with notes in about 10 seconds. Then you can check the video's claims against the web, or ask it questions.
 
 - **Type:** Web app
 - **Stack:** Next.js, Neon, LangChain, Gemini
@@ -21,12 +21,26 @@ Summarize, verify, and chat with any YouTube video.
 
 ## How it works
 
-I started with Whisper and GPT in 2022, then rebuilt around direct transcripts and Gemini: chunking long videos, embedding into a vector store, RAG chat, and internet-backed verification.
+I started with Whisper and GPT in 2023. That version downloaded each video's audio and ran it through speech-to-text, which took minutes.
+
+I rebuilt it around YouTube's own transcripts and Gemini. QuickVid splits a transcript into 5,000-token pieces, has Gemini 1.5 Flash summarize the pieces in parallel, then merges them into one summary with bullet-point notes. Long videos work the same way as short ones, there are just more pieces.
+
+## Verify
+
+A summary of a wrong video is still wrong. So QuickVid can fact-check one.
+
+Gemini writes five search queries from the summary and Tavily pulls web results for each. The model then compares the summary with those sources and returns a verdict, accurate or not, with an explanation of how it got there.
+
+## Chat
+
+For chat, QuickVid cuts the transcript into 250-token chunks, embeds them and stores the vectors in Postgres on Neon. Each question pulls the closest chunks by cosine similarity and hands them to Gemini, so answers come from what was said in the video.
 
 ## Results
 
-LangChain featured it. 173 GitHub stars, 15 forks, 100+ active users. Summarization went from minutes to about 10 seconds.
+LangChain featured it. 174 GitHub stars, 15 forks, 100+ active users. Summarization went from minutes to about 10 seconds.
 
 ## Why it ended
+
+In August 2024 the deployed app started failing on YouTube requests. I tried YouTube cookies, then proxies, then swapped ytdl for youtubei.js.
 
 YouTube ToS and crawler blocking made the workflow unsustainable, so I shut it down. Still the most successful side project I've shipped.
