@@ -71,7 +71,8 @@ const linkStatus = (link?: ScreenLink) => {
 };
 // How long a screen with no page waits for the next page to take it over.
 const HANDOVER_MS = 1000;
-const CANVAS_CLASS = "absolute inset-0 size-full touch-none";
+// One finger scrolls the page drawn here; a pinch is left to the browser.
+const CANVAS_CLASS = "absolute inset-0 size-full touch-pinch-zoom";
 const WEEKDAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 const clock = () =>
@@ -931,6 +932,10 @@ export class CrtController {
       canvas,
       "wheel",
       (event) => {
+        // Ctrl+wheel, and a trackpad pinch reported as one, zoom the page.
+        if (event.ctrlKey) {
+          return;
+        }
         event.preventDefault();
         if (this.state.fullFigure !== undefined) {
           return;
@@ -943,19 +948,25 @@ export class CrtController {
       { passive: false }
     );
     this.listen(canvas, "pointerdown", (event) => {
-      this.touchY = event.pointerType === "touch" ? event.clientY : undefined;
+      // A second finger starts a pinch, which must not scroll the page.
+      const oneFinger = event.pointerType === "touch" && event.isPrimary;
+      this.touchY = oneFinger ? event.clientY : undefined;
     });
     this.listen(canvas, "pointermove", (event) => {
-      if (event.pointerType === "touch" && this.touchY !== undefined) {
-        this.scrollByPixels(this.touchY - event.clientY);
-        this.touchY = event.clientY;
+      if (event.pointerType === "touch") {
+        if (event.isPrimary && this.touchY !== undefined) {
+          this.scrollByPixels(this.touchY - event.clientY);
+          this.touchY = event.clientY;
+        }
         return;
       }
       this.setHover(this.targetAt(event.clientX, event.clientY));
     });
-    this.listen(canvas, "pointerup", () => {
-      this.touchY = undefined;
-    });
+    for (const type of ["pointerup", "pointercancel"] as const) {
+      this.listen(canvas, type, () => {
+        this.touchY = undefined;
+      });
+    }
     this.listen(canvas, "pointerleave", () => this.setHover(undefined));
     this.listen(canvas, "click", (event) => {
       if (this.booting) {
