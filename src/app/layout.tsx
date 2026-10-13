@@ -1,3 +1,4 @@
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -52,6 +53,9 @@ export default function RootLayout({
         />
       </head>
       <body>{children}</body>
+      {process.env.NODE_ENV === "production" && (
+        <GoogleAnalytics gaId="G-8N2RK0Y3CZ" />
+      )}
     </html>
   );
 }
