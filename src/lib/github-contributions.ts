@@ -38,19 +38,47 @@ const MONTH_LABELS = [
 const MIN_WEEKS_FOR_MONTH_LABEL = 3;
 const DAY_MS = 86_400_000;
 
-interface ApiResponse {
-  contributions?: Activity[];
-}
+const FETCH_TIMEOUT_MS = 5000;
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const MAX_LEVEL = 4;
 
+const isActivity = (value: unknown): value is Activity => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const { count, date, level } = value as Record<string, unknown>;
+  return (
+    typeof date === "string" &&
+    ISO_DATE.test(date) &&
+    typeof count === "number" &&
+    Number.isFinite(count) &&
+    typeof level === "number" &&
+    Number.isInteger(level) &&
+    level >= 0 &&
+    level <= MAX_LEVEL
+  );
+};
+
+// The graph is optional: an outage, a slow answer or a changed response
+// shape yields no contributions, and the page is built without it.
 export async function getContributions(username: string): Promise<Activity[]> {
-  const res = await fetch(`${API_URL}/${username}?y=last`, {
-    next: { revalidate: ONE_DAY_SECONDS },
-  });
-  if (!res.ok) {
+  try {
+    const res = await fetch(`${API_URL}/${username}?y=last`, {
+      next: { revalidate: ONE_DAY_SECONDS },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) {
+      return [];
+    }
+    const data: unknown = await res.json();
+    const rows =
+      typeof data === "object" && data !== null && "contributions" in data
+        ? data.contributions
+        : undefined;
+    return Array.isArray(rows) && rows.every(isActivity) ? rows : [];
+  } catch {
     return [];
   }
-  const data = (await res.json()) as ApiResponse;
-  return data.contributions ?? [];
 }
 
 const parseDate = (date: string) => new Date(`${date}T00:00:00Z`);
