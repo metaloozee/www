@@ -399,9 +399,20 @@ const HUMAN_SEGMENT = " HUMAN ";
 const AGENT_SEGMENT = " AGENT ";
 const MODE_SWITCH_WIDTH = HUMAN_SEGMENT.length + AGENT_SEGMENT.length;
 
+// Columns kept for the site name at the left of the title bar.
+const TITLE_COLS = " AYAN.WTF ".length;
+
+// The clock goes first when the title bar is too narrow for everything.
+export function barClock(grid: Grid, clock: string) {
+  const needed =
+    TITLE_COLS + SOUND_CELLS + 1 + MODE_SWITCH_WIDTH + 2 + clock.length + 1;
+  return grid.cols >= needed ? clock : "";
+}
+
 // Title-bar columns of the switch, right of which sits the clock.
 export function modeSwitchCols(grid: Grid, clock: string) {
-  const end = grid.cols - clock.length - 3;
+  const shown = barClock(grid, clock);
+  const end = shown ? grid.cols - shown.length - 3 : grid.cols - 1;
   return { end, start: end - MODE_SWITCH_WIDTH };
 }
 
@@ -501,8 +512,12 @@ function drawBars(
   ctx.fillStyle = palette.phosphor;
   ctx.fillRect(0, 0, grid.cols * CELL_W, CELL_H);
   ctx.fillStyle = palette.glass;
-  textAt(ctx, screen, screen.title, 1, 0);
-  textAt(ctx, screen, state.clock, grid.cols - state.clock.length - 1, 0);
+  // The site name goes too once it would run under the speaker.
+  if (screen.title.length + 2 <= soundSwitchCols(grid, state.clock).start) {
+    textAt(ctx, screen, screen.title, 1, 0);
+  }
+  const clock = barClock(grid, state.clock);
+  textAt(ctx, screen, clock, grid.cols - clock.length - 1, 0);
   drawModeSwitch(ctx, screen, state);
   drawSoundSwitch(ctx, screen, state);
 
@@ -516,7 +531,7 @@ function drawBars(
   const position = shown
     ? ""
     : `ROW ${pad(state.scroll + 1)}/${pad(maxScroll(screen) + 1)}`;
-  const room = grid.cols - position.length - 3;
+  const room = Math.max(0, grid.cols - position.length - 3);
   const pageHints = HINTS.length <= room ? HINTS : SHORT_HINTS;
   let hints = pageHints;
   if (shown) {
