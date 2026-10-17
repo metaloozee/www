@@ -121,6 +121,19 @@ function appendRun(runs: Run[], run: Run) {
   runs.push(run);
 }
 
+// A word wider than the measure (a URL, a long command) is cut into
+// pieces that each fit, so nothing runs off the glass.
+function pieces(word: string, room: number): string[] {
+  if (word.trimEnd().length <= room) {
+    return [word];
+  }
+  const cut: string[] = [];
+  for (let i = 0; i < word.length; i += room) {
+    cut.push(word.slice(i, i + room));
+  }
+  return cut;
+}
+
 function wrap(
   spans: Span[],
   width: number,
@@ -141,7 +154,10 @@ function wrap(
   for (const span of spans) {
     const link = ids.get(span);
     const spanTone: Tone = link === undefined ? tone : "phosphor";
-    for (const word of span.text.split(WORD)) {
+    const words = span.text
+      .split(WORD)
+      .flatMap((word) => pieces(word, Math.max(1, width - indent)));
+    for (const word of words) {
       if (col + word.trimEnd().length > width && col > indent) {
         breakLine();
       }
@@ -167,15 +183,13 @@ function layoutContributions(
 ): Line[] {
   const { grid, link } = block;
   if (grid.days.length === 0) {
-    return [
-      text([
-        {
-          col: 0,
-          text: "ERROR: contribution data unavailable.",
-          tone: "faint",
-        },
-      ]),
-    ];
+    return wrap(
+      [{ text: "ERROR: contribution data unavailable." }],
+      width,
+      0,
+      "faint",
+      ids
+    );
   }
   const offset = Math.max(0, grid.weeks - width);
   const months = grid.months
@@ -270,16 +284,20 @@ function layoutRole(
 function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
   switch (block.kind) {
     case "prompt":
-      return [
-        { big: false, runs: [{ col: 0, text: block.text, tone: "faint" }] },
-      ];
+      return wrap([{ text: block.text }], width, 0, "faint", ids);
     case "heading":
-      return [
-        {
-          big: true,
-          runs: [{ big: true, col: 0, text: block.text, tone: "phosphor" }],
-        },
-      ];
+      // 2x glyphs take two columns each, so the heading wraps at half
+      // the measure.
+      return wrap(
+        [{ text: block.text }],
+        Math.max(1, Math.floor(width / 2)),
+        0,
+        "phosphor",
+        ids
+      ).map((line) => ({
+        big: true,
+        runs: line.runs.map((run) => ({ ...run, big: true, col: run.col * 2 })),
+      }));
     case "paragraph":
       return wrap(block.spans, width, 0, "dim", ids);
     case "facts":
@@ -289,19 +307,41 @@ function layoutBlock(block: Block, width: number, ids: LinkIds): Line[] {
         ])
       );
     case "entry": {
-      const title = `${block.title.text} →`;
-      const head: Run[] = [
-        { col: 0, text: block.index, tone: "faint" },
-        {
-          col: ENTRY_INDEX_WIDTH,
-          link: ids.get(block.title),
-          text: title,
-          tone: "phosphor",
-        },
-        { col: width - block.meta.length, text: block.meta, tone: "faint" },
-      ];
+      const title: Span = { ...block.title, text: `${block.title.text} →` };
+      const link = ids.get(block.title);
+      const lines = wrap(
+        [title],
+        width,
+        ENTRY_INDEX_WIDTH,
+        "phosphor",
+        link === undefined ? ids : new Map([[title, link]]),
+        [{ col: 0, text: block.index, tone: "faint" }]
+      );
+      // The kind sits right of a one-line title; on narrow glass it gets
+      // its own line under the title.
+      const first = lines.at(0);
+      const fits =
+        lines.length === 1 &&
+        ENTRY_INDEX_WIDTH + title.text.length + 2 + block.meta.length <= width;
+      if (fits) {
+        first?.runs.push({
+          col: width - block.meta.length,
+          text: block.meta,
+          tone: "faint",
+        });
+      } else {
+        lines.push(
+          ...wrap(
+            [{ text: block.meta }],
+            width,
+            ENTRY_INDEX_WIDTH,
+            "faint",
+            ids
+          )
+        );
+      }
       return [
-        { big: false, runs: head },
+        ...lines,
         ...wrap([{ text: block.body }], width, ENTRY_INDEX_WIDTH, "dim", ids),
       ];
     }

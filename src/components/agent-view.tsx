@@ -61,12 +61,12 @@ export function AgentView({
 
   return (
     <div className="min-h-dvh bg-tube font-agent text-phosphor-dim">
-      <header className="sticky top-0 flex items-center justify-between gap-4 border-phosphor-ghost border-b bg-tube px-4 py-3 text-sm sm:px-6">
-        <p className="flex min-w-0 flex-wrap gap-x-3">
+      <header className="sticky top-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-phosphor-ghost border-b bg-tube px-4 py-3 text-sm sm:px-6">
+        <p className="flex min-w-0 flex-1 basis-60 flex-wrap gap-x-3">
           <span className="font-semibold text-phosphor">text/markdown</span>
           <span className="text-phosphor-faint">
             GET{" "}
-            <a className={`${LINK_CLASS} break-all`} href={markdownPath}>
+            <a className={`${LINK_CLASS} wrap-anywhere`} href={markdownPath}>
               {markdownPath}
             </a>{" "}
             · also{" "}
